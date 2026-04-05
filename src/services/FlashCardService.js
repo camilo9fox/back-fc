@@ -20,7 +20,11 @@ class FlashCardService {
    * @param {string} params.text - Optional plain text content
    * @returns {Promise<Object>} Validated flashcard data
    */
-  async processInput({ file, text }) {
+  async processInput({ file, text, quantity = 1 }) {
+    if (quantity < 1 || quantity > 20) {
+      throw new Error("La cantidad debe estar entre 1 y 20 flashcards");
+    }
+
     let documentContent = "";
 
     if (file) {
@@ -59,23 +63,30 @@ class FlashCardService {
       `FlashCardService: contenido final enviado a Groq=${processedContent.length} caracteres`,
     );
 
-    const flashCardData =
-      await this.groqService.generateFlashCard(processedContent);
-    const flashCardDto = new FlashCardDto(
-      flashCardData.question,
-      flashCardData.answer,
-      flashCardData.options,
-    );
+    const flashCards = [];
+    for (let i = 0; i < quantity; i++) {
+      const flashCardData =
+        await this.groqService.generateFlashCard(processedContent);
+      const flashCardDto = new FlashCardDto(
+        flashCardData.question,
+        flashCardData.answer,
+        flashCardData.options,
+      );
 
-    if (!flashCardDto.isValid()) {
-      throw new Error("Datos de flashcard inválidos generados por IA");
+      if (!flashCardDto.isValid()) {
+        throw new Error(
+          `Datos de flashcard inválidos generados por IA (intento ${i + 1})`,
+        );
+      }
+
+      flashCards.push({
+        question: flashCardDto.question,
+        answer: flashCardDto.answer,
+        options: flashCardDto.options,
+      });
     }
 
-    return {
-      question: flashCardDto.question,
-      answer: flashCardDto.answer,
-      options: flashCardDto.options,
-    };
+    return flashCards;
   }
 
   /**

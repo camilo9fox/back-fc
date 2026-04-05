@@ -46,6 +46,42 @@ class FlashCardController {
     }
   }
 
+  async generateFlashCards(req, res) {
+    try {
+      const text =
+        typeof req.body.text === "string" ? req.body.text.trim() : "";
+      const file = req.file || null;
+      const quantity = req.body.quantity || 1;
+
+      if (!file && !text) {
+        return res.status(400).json({
+          error:
+            "No se proporcionó ningún archivo ni texto. Envíe al menos una de las opciones.",
+        });
+      }
+
+      const flashCards = await this.flashCardService.processInput({
+        file,
+        text,
+        quantity,
+      });
+
+      res.json(flashCards);
+    } catch (error) {
+      console.error("Error in generateFlashCards:", error);
+      if (error.message && error.message.includes("request_too_large")) {
+        return res.status(413).json({
+          error:
+            "La solicitud a la API de Groq es demasiado grande. Intenta con un documento más corto o reduce el contenido.",
+        });
+      }
+
+      res
+        .status(500)
+        .json({ error: error.message || "Error interno del servidor" });
+    }
+  }
+
   /**
    * Test endpoint
    * @param {Object} req - Express request object

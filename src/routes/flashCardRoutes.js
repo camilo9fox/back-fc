@@ -44,6 +44,10 @@ router.post("/generate-flashcard", upload.single("file"), (req, res) =>
   flashCardController.generateFlashCard(req, res),
 );
 
+router.post("/generate-flashcards", upload.single("file"), (req, res) =>
+  flashCardController.generateFlashCards(req, res),
+);
+
 router.get("/test", (req, res) => flashCardController.test(req, res));
 
 module.exports = router;

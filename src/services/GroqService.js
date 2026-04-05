@@ -17,7 +17,7 @@ class GroqService {
    * @param {string} documentContent - The text content from the document
    * @returns {Promise<Object>} Flashcard data
    */
-  async generateFlashCard(documentContent) {
+  async generateFlashCard(documentContent, quantity = 1) {
     console.log(`GroqService: generateFlashCard model=${this.model}`);
     const response = await this.groq.chat.completions.create({
       messages: [
@@ -28,7 +28,7 @@ class GroqService {
         },
         {
           role: "user",
-          content: `Documento: ${documentContent}\n\nGenera una pregunta, respuesta y 3 opciones basadas en este texto.`,
+          content: `Documento: ${documentContent}\n\nGenera ${quantity} preguntas, respuestas y 3 opciones cada una basadas en este texto y que no se repitan entre sí. Asegúrate de que las preguntas sean claras y las opciones plausibles.`,
         },
       ],
       model: this.model,
