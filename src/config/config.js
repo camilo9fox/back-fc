@@ -7,6 +7,13 @@ const config = {
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
     credentials: true,
   },
+  limits: {
+    maxContentLength: 2500, // ~600 tokens, leaving margin for prompt
+    maxFlashCards: 20,
+    minFlashCards: 1,
+    fileSizeLimit: 5 * 1024 * 1024, // 5MB
+    allowedFileTypes: ["application/pdf", "text/plain"],
+  },
 };
 
 module.exports = config;

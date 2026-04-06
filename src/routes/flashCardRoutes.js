@@ -1,10 +1,7 @@
 const express = require("express");
 const multer = require("multer");
-const FlashCardController = require("../controllers/FlashCardController");
-const FlashCardService = require("../services/FlashCardService");
-const GroqService = require("../services/GroqService");
-const FileService = require("../services/FileService");
-const DocumentProcessingService = require("../services/DocumentProcessingService");
+const Container = require("../container");
+const config = require("../config/config");
 
 const router = express.Router();
 
@@ -13,11 +10,10 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: config.limits.fileSizeLimit,
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["application/pdf", "text/plain"];
-    if (allowedTypes.includes(file.mimetype)) {
+    if (config.limits.allowedFileTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
       cb(
@@ -28,16 +24,11 @@ const upload = multer({
   },
 });
 
-// Initialize services and controller
-const groqService = new GroqService(process.env.GROQ_API_KEY);
-const fileService = new FileService();
-const documentProcessingService = new DocumentProcessingService();
-const flashCardService = new FlashCardService(
-  groqService,
-  fileService,
-  documentProcessingService,
-);
-const flashCardController = new FlashCardController(flashCardService);
+// Initialize container and get controller
+const container = Container.create({
+  groqApiKey: process.env.GROQ_API_KEY,
+});
+const flashCardController = container.get("flashCardController");
 
 // Routes
 router.post("/generate-flashcard", upload.single("file"), (req, res) =>

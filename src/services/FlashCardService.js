@@ -1,4 +1,5 @@
 const FlashCardDto = require("../dtos/FlashCardDto");
+const config = require("../config/config");
 
 /**
  * Service class for flashcard orchestration
@@ -10,7 +11,7 @@ class FlashCardService {
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
     // Maximum content size before sending to Groq
-    this.MAX_CONTENT_LENGTH = 2500; // ~600 tokens, leaving margin for prompt
+    this.MAX_CONTENT_LENGTH = config.limits.maxContentLength;
   }
 
   /**
@@ -21,8 +22,13 @@ class FlashCardService {
    * @returns {Promise<Object>} Validated flashcard data
    */
   async processInput({ file, text, quantity = 1 }) {
-    if (quantity < 1 || quantity > 20) {
-      throw new Error("La cantidad debe estar entre 1 y 20 flashcards");
+    if (
+      quantity < config.limits.minFlashCards ||
+      quantity > config.limits.maxFlashCards
+    ) {
+      throw new Error(
+        `La cantidad debe estar entre ${config.limits.minFlashCards} y ${config.limits.maxFlashCards} flashcards`,
+      );
     }
 
     let documentContent = "";
@@ -63,10 +69,14 @@ class FlashCardService {
       `FlashCardService: contenido final enviado a Groq=${processedContent.length} caracteres`,
     );
 
+    const flashCardDataArray = await this.groqService.generateFlashCards(
+      processedContent,
+      quantity,
+    );
+    console.log({ flashCardDataArray: flashCardDataArray });
+
     const flashCards = [];
-    for (let i = 0; i < quantity; i++) {
-      const flashCardData =
-        await this.groqService.generateFlashCard(processedContent);
+    for (const flashCardData of flashCardDataArray) {
       const flashCardDto = new FlashCardDto(
         flashCardData.question,
         flashCardData.answer,
@@ -74,9 +84,7 @@ class FlashCardService {
       );
 
       if (!flashCardDto.isValid()) {
-        throw new Error(
-          `Datos de flashcard inválidos generados por IA (intento ${i + 1})`,
-        );
+        throw new Error(`Datos de flashcard inválidos generados por IA`);
       }
 
       flashCards.push({
@@ -130,62 +138,6 @@ class FlashCardService {
       combinedSummary,
       this.MAX_CONTENT_LENGTH,
     );
-  }
-
-  splitIntoChunks(text, maxChunkSize) {
-    const sentences = text.match(/[^.!?]+[.!?]+[\])'"`’”]*|.+$/g) || [text];
-    const chunks = [];
-    let current = "";
-
-    for (const sentence of sentences) {
-      if (current.length + sentence.length <= maxChunkSize) {
-        current += sentence;
-      } else {
-        if (current.trim()) {
-          chunks.push(current.trim());
-        }
-
-        if (sentence.length > maxChunkSize) {
-          let start = 0;
-          while (start < sentence.length) {
-            chunks.push(sentence.slice(start, start + maxChunkSize).trim());
-            start += maxChunkSize;
-          }
-          current = "";
-        } else {
-          current = sentence;
-        }
-      }
-    }
-
-    if (current.trim()) {
-      chunks.push(current.trim());
-    }
-
-    return chunks;
-  }
-
-  validateAndTruncateContent(content) {
-    if (content.length > this.MAX_CONTENT_LENGTH) {
-      console.warn(
-        `Contenido truncado de ${content.length} a ${this.MAX_CONTENT_LENGTH} caracteres`,
-      );
-      // Truncar al final de una oración si es posible
-      let truncated = content.substring(0, this.MAX_CONTENT_LENGTH);
-      const lastSentenceEnd = Math.max(
-        truncated.lastIndexOf("."),
-        truncated.lastIndexOf("!"),
-        truncated.lastIndexOf("?"),
-      );
-
-      if (lastSentenceEnd > this.MAX_CONTENT_LENGTH * 0.8) {
-        truncated = truncated.substring(0, lastSentenceEnd + 1);
-      }
-
-      return truncated.trim();
-    }
-
-    return content;
   }
 }
 

@@ -3,10 +3,11 @@
  * Defines the structure of flashcard data
  */
 class FlashCardDto {
-  constructor(question, answer, options) {
+  constructor(question, answer, options, requiredOptionsCount = 3) {
     this.question = question;
     this.answer = answer;
     this.options = options;
+    this.requiredOptionsCount = requiredOptionsCount;
   }
 
   /**
@@ -20,10 +21,11 @@ class FlashCardDto {
       typeof this.answer === "string" &&
       this.answer.length > 0 &&
       Array.isArray(this.options) &&
-      this.options.length === 3 &&
+      this.options.length === this.requiredOptionsCount &&
       this.options.every(
         (option) => typeof option === "string" && option.length > 0,
-      )
+      ) &&
+      this.options.includes(this.answer)
     );
   }
 
