@@ -62,8 +62,19 @@ class GroqService {
       response_format: { type: "json_object" },
       stream: false,
     });
-    const result = JSON.parse(response.choices[0].message.content.trim());
-    return Array.isArray(result) ? result : [result];
+    let result = JSON.parse(response.choices[0].message.content.trim());
+    if (!Array.isArray(result)) {
+      result = [result];
+    }
+
+    if (result.length > quantity) {
+      console.warn(
+        `GroqService: generated ${result.length} flashcards, truncating to requested quantity=${quantity}`,
+      );
+      result = result.slice(0, quantity);
+    }
+
+    return result;
   }
 
   /**

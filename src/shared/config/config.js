@@ -14,6 +14,15 @@ const config = {
     fileSizeLimit: 5 * 1024 * 1024, // 5MB
     allowedFileTypes: ["application/pdf", "text/plain"],
   },
+  jwt: {
+    secret: process.env.JWT_SECRET,
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  },
+  supabase: {
+    url: process.env.SUPABASE_URL,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    anonKey: process.env.SUPABASE_ANON_KEY,
+  },
 };
 
 module.exports = config;

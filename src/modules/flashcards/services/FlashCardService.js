@@ -1,15 +1,21 @@
 const FlashCardDto = require("../dtos/FlashCardDto");
-const config = require("../config/config");
+const config = require("../../../shared/config/config");
 
 /**
  * Service class for flashcard orchestration
  * Encapsula la lógica de archivo, Groq y validación de DTO
  */
 class FlashCardService {
-  constructor(groqService, fileService, documentProcessingService) {
+  constructor(
+    groqService,
+    fileService,
+    documentProcessingService,
+    flashCardRepository,
+  ) {
     this.groqService = groqService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
+    this.flashCardRepository = flashCardRepository;
     // Maximum content size before sending to Groq
     this.MAX_CONTENT_LENGTH = config.limits.maxContentLength;
   }
@@ -19,9 +25,14 @@ class FlashCardService {
    * @param {Object} params
    * @param {Object|null} params.file - Uploaded file object
    * @param {string} params.text - Optional plain text content
+   * @param {string} params.userId - User ID (required)
    * @returns {Promise<Object>} Validated flashcard data
    */
-  async processInput({ file, text, quantity = 1 }) {
+  async processInput({ file, text, quantity = 1, userId }) {
+    if (!userId) {
+      throw new Error("User ID is required to generate flashcards");
+    }
+
     if (
       quantity < config.limits.minFlashCards ||
       quantity > config.limits.maxFlashCards
@@ -73,10 +84,11 @@ class FlashCardService {
       processedContent,
       quantity,
     );
-    console.log({ flashCardDataArray: flashCardDataArray });
+    const truncatedFlashCardDataArray = flashCardDataArray.slice(0, quantity);
+    console.log({ flashCardDataArray: truncatedFlashCardDataArray });
 
     const flashCards = [];
-    for (const flashCardData of flashCardDataArray) {
+    for (const flashCardData of truncatedFlashCardDataArray) {
       const flashCardDto = new FlashCardDto(
         flashCardData.question,
         flashCardData.answer,
@@ -92,6 +104,21 @@ class FlashCardService {
         answer: flashCardDto.answer,
         options: flashCardDto.options,
       });
+    }
+
+    // Save AI-generated flashcards to database
+    try {
+      const flashcardsToSave = flashCards.map((card) => ({
+        ...card,
+        source: "ai",
+      }));
+      await this.flashCardRepository.createMany(flashcardsToSave, userId);
+      console.log(
+        `FlashCardService: ${flashCards.length} flashcards guardadas en BD`,
+      );
+    } catch (error) {
+      console.error("Error saving AI flashcards to database:", error);
+      // Don't throw error here, just log it - the flashcards were generated successfully
     }
 
     return flashCards;
