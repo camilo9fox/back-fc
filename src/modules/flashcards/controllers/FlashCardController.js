@@ -112,7 +112,7 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { question, answer, options } = req.body;
+      const { question, answer, options, categoryId } = req.body;
 
       if (!question || !answer || !options) {
         return res.status(400).json({
@@ -128,6 +128,7 @@ class FlashCardController {
           options,
         },
         userId,
+        categoryId,
       );
 
       res.status(201).json(flashCard);
@@ -148,7 +149,7 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { flashcards } = req.body;
+      const { flashcards, categoryId } = req.body;
 
       if (!flashcards || !Array.isArray(flashcards)) {
         return res.status(400).json({
@@ -158,10 +159,50 @@ class FlashCardController {
       }
 
       const createdFlashCards =
-        await this.manualFlashCardService.createFlashCards(flashcards, userId);
+        await this.manualFlashCardService.createFlashCards(
+          flashcards,
+          userId,
+          categoryId,
+        );
 
       res.status(201).json({
         message: `${createdFlashCards.length} flashcards creadas exitosamente`,
+        flashcards: createdFlashCards,
+      });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async saveFlashCards(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { flashcards, categoryId } = req.body;
+
+      if (
+        !flashcards ||
+        !Array.isArray(flashcards) ||
+        flashcards.length === 0
+      ) {
+        return res.status(400).json({
+          error:
+            "Se requiere un array 'flashcards' con al menos una flashcard.",
+        });
+      }
+
+      const createdFlashCards =
+        await this.manualFlashCardService.createFlashCards(
+          flashcards,
+          userId,
+          categoryId,
+        );
+
+      res.status(201).json({
+        message: `${createdFlashCards.length} flashcards guardadas exitosamente`,
         flashcards: createdFlashCards,
       });
     } catch (error) {
@@ -180,13 +221,16 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { source, limit = 10, offset = 0 } = req.query;
+      const { source, limit = 10, offset = 0, categoryId } = req.query;
 
       const filters = {
         userId, // Always filter by authenticated user
       };
       if (source && ["ai", "manual"].includes(source)) {
         filters.source = source;
+      }
+      if (categoryId) {
+        filters.categoryId = categoryId;
       }
       filters.limit = Math.min(parseInt(limit) || 10, 100); // Max 100 per request
       filters.offset = parseInt(offset) || 0;

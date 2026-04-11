@@ -11,11 +11,13 @@ class FlashCardService {
     fileService,
     documentProcessingService,
     flashCardRepository,
+    categoryService,
   ) {
     this.groqService = groqService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
     this.flashCardRepository = flashCardRepository;
+    this.categoryService = categoryService;
     // Maximum content size before sending to Groq
     this.MAX_CONTENT_LENGTH = config.limits.maxContentLength;
   }
@@ -87,6 +89,19 @@ class FlashCardService {
     const truncatedFlashCardDataArray = flashCardDataArray.slice(0, quantity);
     console.log({ flashCardDataArray: truncatedFlashCardDataArray });
 
+    // Get default category for the user
+    let defaultCategoryId = null;
+    try {
+      const defaultCategory =
+        await this.categoryService.getDefaultCategory(userId);
+      defaultCategoryId = defaultCategory.id;
+    } catch (error) {
+      console.warn(
+        "Could not find default category for AI-generated flashcards:",
+        error,
+      );
+    }
+
     const flashCards = [];
     for (const flashCardData of truncatedFlashCardDataArray) {
       const flashCardDto = new FlashCardDto(
@@ -103,22 +118,8 @@ class FlashCardService {
         question: flashCardDto.question,
         answer: flashCardDto.answer,
         options: flashCardDto.options,
+        categoryId: defaultCategoryId, // Include default category
       });
-    }
-
-    // Save AI-generated flashcards to database
-    try {
-      const flashcardsToSave = flashCards.map((card) => ({
-        ...card,
-        source: "ai",
-      }));
-      await this.flashCardRepository.createMany(flashcardsToSave, userId);
-      console.log(
-        `FlashCardService: ${flashCards.length} flashcards guardadas en BD`,
-      );
-    } catch (error) {
-      console.error("Error saving AI flashcards to database:", error);
-      // Don't throw error here, just log it - the flashcards were generated successfully
     }
 
     return flashCards;

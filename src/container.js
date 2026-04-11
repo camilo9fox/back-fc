@@ -64,6 +64,7 @@ class Container {
         c.get("fileService"),
         c.get("documentProcessingService"),
         c.get("flashCardRepository"),
+        c.get("categoryService"),
       );
     });
 
@@ -74,7 +75,10 @@ class Container {
 
     container.register("manualFlashCardService", (c) => {
       const ManualFlashCardService = require("./modules/flashcards/services/ManualFlashCardService");
-      return new ManualFlashCardService(c.get("flashCardRepository"));
+      return new ManualFlashCardService(
+        c.get("flashCardRepository"),
+        c.get("categoryService"),
+      );
     });
 
     container.register("authRepository", () => {
@@ -84,7 +88,7 @@ class Container {
 
     container.register("authService", (c) => {
       const AuthService = require("./modules/auth/services/AuthService");
-      return new AuthService(c.get("authRepository"));
+      return new AuthService(c.get("authRepository"), c.get("categoryService"));
     });
 
     container.register("authController", (c) => {
@@ -109,6 +113,27 @@ class Container {
     container.register("flashCardRoutes", (c) => {
       const createFlashCardRouter = require("./modules/flashcards/routes/flashCardRoutes");
       return createFlashCardRouter(c.get("flashCardController"));
+    });
+
+    // Category services
+    container.register("categoryRepository", () => {
+      const SupabaseCategoryRepository = require("./modules/categories/repositories/implementations/SupabaseCategoryRepository");
+      return new SupabaseCategoryRepository();
+    });
+
+    container.register("categoryService", (c) => {
+      const CategoryService = require("./modules/categories/services/CategoryService");
+      return new CategoryService(c.get("categoryRepository"));
+    });
+
+    container.register("categoryController", (c) => {
+      const CategoryController = require("./modules/categories/controllers/CategoryController");
+      return new CategoryController(c.get("categoryService"));
+    });
+
+    container.register("categoryRoutes", (c) => {
+      const createCategoryRouter = require("./modules/categories/routes");
+      return createCategoryRouter(c.get("categoryController"));
     });
 
     return container;

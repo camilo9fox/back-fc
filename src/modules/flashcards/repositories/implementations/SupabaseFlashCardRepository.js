@@ -42,6 +42,7 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
             options: flashCard.options,
             source: flashCard.source || "manual",
             user_id: flashCard.userId,
+            category_id: flashCard.categoryId || null,
           },
         ])
         .select()
@@ -77,6 +78,7 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         options: card.options,
         source: card.source || "manual",
         user_id: userId,
+        category_id: card.categoryId || null,
       }));
 
       const { data, error } = await this.supabase
@@ -138,7 +140,16 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
     try {
       let query = this.supabase
         .from(this.tableName)
-        .select("*")
+        .select(
+          `
+          *,
+          categories (
+            id,
+            title,
+            description
+          )
+        `,
+        )
         .order("created_at", { ascending: false });
 
       if (filters.userId) {
@@ -147,6 +158,10 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
 
       if (filters.source) {
         query = query.eq("source", filters.source);
+      }
+
+      if (filters.categoryId) {
+        query = query.eq("category_id", filters.categoryId);
       }
 
       if (filters.limit) {

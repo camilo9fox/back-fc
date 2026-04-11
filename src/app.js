@@ -15,12 +15,14 @@ function createApp() {
 
   const flashCardRoutes = container.get("flashCardRoutes");
   const authRoutes = container.get("authRoutes");
+  const categoryRoutes = container.get("categoryRoutes");
 
   app.use(cors(config.corsOptions));
   app.use(express.json({ limit: "10mb" }));
 
   app.use("/api/auth", authRoutes.getRouter());
-  app.use("/api", flashCardRoutes);
+  app.use("/api/flashcards", flashCardRoutes);
+  app.use("/api/categories", categoryRoutes);
 
   app.use((error, req, res, next) => {
     console.error(error.stack);

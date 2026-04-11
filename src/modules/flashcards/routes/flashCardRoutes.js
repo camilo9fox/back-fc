@@ -47,6 +47,10 @@ function createFlashCardRouter(flashCardController) {
     flashCardController.createManualFlashCards(req, res),
   );
 
+  router.post("/save", authMiddleware, (req, res) =>
+    flashCardController.saveFlashCards(req, res),
+  );
+
   router.get("/flashcards", authMiddleware, (req, res) =>
     flashCardController.getFlashCards(req, res),
   );

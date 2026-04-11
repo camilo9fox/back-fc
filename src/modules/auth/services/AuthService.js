@@ -1,15 +1,15 @@
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const config = require("../../../shared/config/config");
 
 /**
  * Service for authentication business logic
- * Handles password hashing, JWT token generation, and user validation
+ * Handles JWT token generation and user validation
  * Follows Single Responsibility Principle - only auth business logic
  */
 class AuthService {
-  constructor(authRepository) {
+  constructor(authRepository, categoryService) {
     this.authRepository = authRepository;
+    this.categoryService = categoryService;
   }
 
   /**
@@ -25,15 +25,28 @@ class AuthService {
       this._validateEmail(email);
       this._validatePassword(password);
 
-      // Hash password for additional security (though Supabase handles this)
-      const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Create user in Supabase
+      // Create user in Supabase with plaintext password.
+      // Supabase handles storage and hashing internally.
       const result = await this.authRepository.signUp(
         email,
-        hashedPassword,
+        password,
         metadata,
       );
+
+      // Create default "General" category for the new user
+      try {
+        await this.categoryService.createCategory(result.user.id, {
+          title: "General",
+          description:
+            "Categoría por defecto para flashcards sin categoría asignada",
+        });
+      } catch (categoryError) {
+        console.warn(
+          "Failed to create default category for user:",
+          categoryError,
+        );
+        // Don't fail registration if category creation fails
+      }
 
       // Generate JWT token
       const token = this._generateToken(result.user);
