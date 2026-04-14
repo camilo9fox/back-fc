@@ -5,9 +5,20 @@
  */
 class DocumentProcessingService {
   constructor() {
-    // Configuración de procesamiento de documentos
-    this.MAX_CHUNK_LENGTH = 900; // Tamaño máximo de chunk en caracteres
-    this.CHUNK_PROCESS_DELAY = 3000; // Delay entre procesamiento de chunks en ms
+    this.MAX_CHUNK_LENGTH = 5200;
+    this.CHUNK_OVERLAP = 120;
+    this.MAX_PARALLEL_CHUNKS = 6;
+  }
+
+  normalizeText(text) {
+    return text
+      .replace(/\r/g, "")
+      .replace(/-\n/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n[ \t]+/g, "\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
   }
 
   /**
@@ -16,29 +27,41 @@ class DocumentProcessingService {
    * @param {number} maxChunkSize - Maximum size of each chunk
    * @returns {Array<string>} Array of text chunks
    */
-  splitIntoChunks(text, maxChunkSize = this.MAX_CHUNK_LENGTH) {
-    const sentences = text.match(/[^.!?]+[.!?]+[\])'"`'"]*|.+$/g) || [text];
+  splitIntoChunks(
+    text,
+    maxChunkSize = this.MAX_CHUNK_LENGTH,
+    overlapSize = this.CHUNK_OVERLAP,
+  ) {
+    const normalizedText = this.normalizeText(text);
+    const paragraphs = normalizedText.split(/\n{2,}/).filter(Boolean);
     const chunks = [];
     let current = "";
 
-    for (const sentence of sentences) {
-      if (current.length + sentence.length <= maxChunkSize) {
-        current += sentence;
+    for (const paragraph of paragraphs) {
+      if (paragraph.length > maxChunkSize) {
+        const paragraphChunks = this.splitLargeBlock(paragraph, maxChunkSize);
+        for (const paragraphChunk of paragraphChunks) {
+          if (current.trim()) {
+            chunks.push(current.trim());
+          }
+          current = paragraphChunk;
+          if (current.trim()) {
+            chunks.push(current.trim());
+          }
+          current = this.getOverlap(current, overlapSize);
+        }
+        continue;
+      }
+
+      const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+      if (candidate.length <= maxChunkSize) {
+        current = candidate;
       } else {
         if (current.trim()) {
           chunks.push(current.trim());
         }
-
-        if (sentence.length > maxChunkSize) {
-          let start = 0;
-          while (start < sentence.length) {
-            chunks.push(sentence.slice(start, start + maxChunkSize).trim());
-            start += maxChunkSize;
-          }
-          current = "";
-        } else {
-          current = sentence;
-        }
+        current = this.getOverlap(current, overlapSize);
+        current = current ? `${current}\n\n${paragraph}` : paragraph;
       }
     }
 
@@ -49,6 +72,46 @@ class DocumentProcessingService {
     return chunks;
   }
 
+  splitLargeBlock(block, maxChunkSize) {
+    const sentences = block.match(/[^.!?\n]+(?:[.!?]+|$)/g) || [block];
+    const chunks = [];
+    let current = "";
+
+    for (const sentence of sentences) {
+      const candidate = `${current} ${sentence}`.trim();
+      if (candidate.length <= maxChunkSize) {
+        current = candidate;
+      } else {
+        if (current) {
+          chunks.push(current);
+        }
+
+        if (sentence.length > maxChunkSize) {
+          for (let start = 0; start < sentence.length; start += maxChunkSize) {
+            chunks.push(sentence.slice(start, start + maxChunkSize).trim());
+          }
+          current = "";
+        } else {
+          current = sentence.trim();
+        }
+      }
+    }
+
+    if (current) {
+      chunks.push(current);
+    }
+
+    return chunks;
+  }
+
+  getOverlap(text, overlapSize) {
+    if (!text || text.length <= overlapSize) {
+      return text || "";
+    }
+
+    return text.slice(-overlapSize).trim();
+  }
+
   /**
    * Processes chunks with a custom processing function and delays between requests
    * @param {Array<string>} chunks - Array of text chunks to process
@@ -56,25 +119,122 @@ class DocumentProcessingService {
    * @param {number} delayMs - Delay between chunk processing in milliseconds
    * @returns {Promise<Array>} Array of processed results
    */
-  async processChunksWithDelay(
-    chunks,
-    processingFunction,
-    delayMs = this.CHUNK_PROCESS_DELAY,
-  ) {
-    const results = [];
+  async processChunksConcurrently(chunks, processingFunction, options = {}) {
+    const concurrency = Math.max(
+      1,
+      Math.min(options.concurrency || this.MAX_PARALLEL_CHUNKS, chunks.length),
+    );
+    const results = new Array(chunks.length);
+    let nextIndex = 0;
+    let completed = 0;
 
-    for (let index = 0; index < chunks.length; index += 1) {
-      const chunk = chunks[index];
-      const result = await processingFunction(chunk, index, chunks.length);
-      results.push(result);
+    const worker = async () => {
+      while (nextIndex < chunks.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        const result = await processingFunction(
+          chunks[currentIndex],
+          currentIndex,
+          chunks.length,
+        );
+        results[currentIndex] = result;
+        completed += 1;
 
-      // Add delay between chunks to avoid rate limits
-      if (index < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        if (typeof options.onProgress === "function") {
+          options.onProgress({
+            completed,
+            total: chunks.length,
+            index: currentIndex,
+          });
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+    return results;
+  }
+
+  combineStructuredNotes(results) {
+    const keyPoints = new Set();
+    const definitions = new Set();
+    const facts = new Set();
+    const examples = new Set();
+
+    for (const result of results) {
+      for (const keyPoint of result.keyPoints || []) {
+        keyPoints.add(keyPoint.trim());
+      }
+      for (const definition of result.definitions || []) {
+        definitions.add(definition.trim());
+      }
+      for (const fact of result.facts || []) {
+        facts.add(fact.trim());
+      }
+      for (const example of result.examples || []) {
+        examples.add(example.trim());
       }
     }
 
-    return results;
+    return [
+      "PUNTOS CLAVE:",
+      ...Array.from(keyPoints)
+        .slice(0, 25)
+        .map((item) => `- ${item}`),
+      "",
+      "DEFINICIONES:",
+      ...Array.from(definitions)
+        .slice(0, 20)
+        .map((item) => `- ${item}`),
+      "",
+      "DATOS Y RELACIONES:",
+      ...Array.from(facts)
+        .slice(0, 25)
+        .map((item) => `- ${item}`),
+      "",
+      "EJEMPLOS Y APLICACIONES:",
+      ...Array.from(examples)
+        .slice(0, 15)
+        .map((item) => `- ${item}`),
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+
+  buildFastContext(chunks, maxLength) {
+    if (!Array.isArray(chunks) || chunks.length === 0) {
+      return "";
+    }
+
+    const pickIndices = new Set([0, chunks.length - 1]);
+    pickIndices.add(Math.floor(chunks.length / 2));
+    pickIndices.add(Math.floor(chunks.length / 3));
+    pickIndices.add(Math.floor((chunks.length * 2) / 3));
+
+    // Also prioritize denser chunks by unique word count to preserve salient info.
+    const scored = chunks
+      .map((chunk, index) => {
+        const words = (chunk.toLowerCase().match(/[a-z0-9áéíóúñü]{3,}/gi) || [])
+          .map((word) => word.trim())
+          .filter(Boolean);
+        const uniqueWordCount = new Set(words).size;
+        return { index, chunk, score: uniqueWordCount };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4);
+
+    for (const item of scored) {
+      pickIndices.add(item.index);
+    }
+
+    const selectedChunks = Array.from(pickIndices)
+      .filter((index) => index >= 0 && index < chunks.length)
+      .sort((a, b) => a - b)
+      .map((index) => chunks[index]);
+
+    const joined = selectedChunks.join("\n\n");
+    return this.validateAndTruncateContent(joined, maxLength);
   }
 
   /**

@@ -39,6 +39,17 @@ function createFlashCardRouter(flashCardController) {
     (req, res) => flashCardController.generateFlashCards(req, res),
   );
 
+  router.post(
+    "/generate-flashcards-async",
+    authMiddleware,
+    upload.single("file"),
+    (req, res) => flashCardController.generateFlashCardsAsync(req, res),
+  );
+
+  router.get("/generation-jobs/:jobId", authMiddleware, (req, res) =>
+    flashCardController.getGenerationJob(req, res),
+  );
+
   router.post("/create-flashcard", authMiddleware, (req, res) =>
     flashCardController.createManualFlashCard(req, res),
   );

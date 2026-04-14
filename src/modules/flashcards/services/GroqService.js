@@ -9,7 +9,153 @@ class GroqService {
     this.groq = new Groq({
       apiKey: apiKey,
     });
-    this.model = "llama-3.1-8b-instant";
+    this.fastModel = process.env.GROQ_FAST_MODEL || "llama-3.1-8b-instant";
+    this.qualityModel =
+      process.env.GROQ_QUALITY_MODEL || "llama-3.1-8b-instant";
+    this.MAX_GENERATION_ATTEMPTS = 3;
+  }
+
+  buildFlashcardGenerationMessages(documentContent, quantity, excluded = []) {
+    const excludedBlock =
+      excluded.length > 0
+        ? `\n\nPREGUNTAS PROHIBIDAS (no repetir):\n${excluded
+            .slice(0, 20)
+            .map((question, index) => `${index + 1}. ${question}`)
+            .join("\n")}`
+        : "";
+
+    return [
+      {
+        role: "system",
+        content: `Eres un pedagogo experto en crear flashcards de estudio de alta calidad en espanol neutro.
+
+REGLAS OBLIGATORIAS:
+1. Devuelve SOLO un objeto JSON valido con la forma {"flashcards": [...] }.
+2. Cada question debe estar muy bien redactada, ser precisa, autoexplicativa y sonar natural.
+3. Cada answer debe ser breve pero completa.
+4. options debe contener exactamente 3 opciones unicas, incluyendo answer exactamente una vez.
+5. Evita preguntas repetidas, triviales o ambiguas.
+6. Prioriza definiciones, relaciones causa-efecto, comparaciones, procesos, ejemplos y aplicaciones.
+7. No inventes informacion que no aparezca o no se deduzca claramente del material.
+8. Los distractores deben ser plausibles y cercanos al tema, no absurdos.
+9. Mantén variedad entre preguntas.
+10. No agregues explicaciones fuera del JSON.`,
+      },
+      {
+        role: "user",
+        content: `Material de estudio:\n${documentContent}\n\nGenera ${quantity} flashcards distintas.${excludedBlock}\n\nDevuelve el JSON con esta forma exacta:\n{"flashcards":[{"question":"...","answer":"...","options":["...","...","..."]}]}`,
+      },
+    ];
+  }
+
+  async createChatCompletion({
+    messages,
+    responseFormat,
+    preferredModel,
+    fallbackModel,
+    ...options
+  }) {
+    const models = [preferredModel, fallbackModel].filter(Boolean);
+    let lastError = null;
+
+    for (const model of models) {
+      try {
+        return await this.groq.chat.completions.create({
+          messages,
+          model,
+          ...(responseFormat ? { response_format: responseFormat } : {}),
+          ...options,
+        });
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError;
+  }
+
+  parseJsonPayload(content) {
+    if (!content || typeof content !== "string") {
+      throw new Error("La respuesta del modelo llegó vacía.");
+    }
+
+    const trimmed = content.trim();
+    const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = fencedMatch ? fencedMatch[1].trim() : trimmed;
+
+    try {
+      return JSON.parse(candidate);
+    } catch (error) {
+      const objectStart = candidate.indexOf("{");
+      const arrayStart = candidate.indexOf("[");
+      const start =
+        objectStart === -1
+          ? arrayStart
+          : arrayStart === -1
+            ? objectStart
+            : Math.min(objectStart, arrayStart);
+      const objectEnd = candidate.lastIndexOf("}");
+      const arrayEnd = candidate.lastIndexOf("]");
+      const end = Math.max(objectEnd, arrayEnd);
+
+      if (start !== -1 && end !== -1 && end > start) {
+        return JSON.parse(candidate.slice(start, end + 1));
+      }
+
+      throw error;
+    }
+  }
+
+  sanitizeFlashcards(flashcards, quantity) {
+    const normalized = [];
+    const seenQuestions = new Set();
+
+    for (const card of flashcards) {
+      if (!card) continue;
+
+      const question = String(card.question || "").trim();
+      const answer = String(card.answer || "").trim();
+      const options = Array.isArray(card.options)
+        ? Array.from(
+            new Set(
+              card.options
+                .map((option) => String(option || "").trim())
+                .filter(Boolean),
+            ),
+          )
+        : [];
+
+      if (!question || !answer) continue;
+      if (seenQuestions.has(question.toLowerCase())) continue;
+
+      if (!options.includes(answer)) {
+        options.push(answer);
+      }
+
+      const distractors = options.filter((option) => option !== answer);
+      if (distractors.length < 2) {
+        continue;
+      }
+
+      const normalizedOptions = [answer, distractors[0], distractors[1]];
+
+      seenQuestions.add(question.toLowerCase());
+      normalized.push({
+        question: question.endsWith("?") ? question : `${question}?`,
+        answer,
+        options: normalizedOptions,
+      });
+
+      if (normalized.length === quantity) {
+        break;
+      }
+    }
+
+    if (normalized.length === 0) {
+      throw new Error("La IA no devolvió flashcards válidas.");
+    }
+
+    return normalized;
   }
 
   /**
@@ -20,61 +166,79 @@ class GroqService {
    */
   async generateFlashCards(documentContent, quantity = 1) {
     console.log(
-      `GroqService: generateFlashCards model=${this.model}, quantity=${quantity}`,
+      `GroqService: generateFlashCards model=${this.qualityModel}, quantity=${quantity}`,
     );
-    const response = await this.groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: `Eres un experto pedagogo. Tu tarea es generar flashcards educativas de alta calidad en JSON.
-  
-            REGLAS CRÍTICAS:
-            1. Cada "question" debe ser una oración completa y profesional.
-            2. La "answer" debe ser la respuesta correcta exacta.
-            3. El array "options" DEBE contener 3 elementos: la respuesta correcta (idéntica a "answer") y 2 distractores incorrectos.
-            4. NUNCA repitas el tema de una pregunta en la misma tanda.
-            
-            FORMATO ESPERADO PARA MÚLTIPLES FLASHCARDS:
-            [
-              {
-                "question": "¿Cuál es la función principal de las mitocondrias en la célula?",
-                "answer": "Producir energía en forma de ATP",
-                "options": ["Sintetizar proteínas", "Producir energía en forma de ATP", "Almacenar material genético"]
-              },
-              {
-                "question": "¿Otra pregunta diferente?",
-                "answer": "Respuesta correcta",
-                "options": ["Opción incorrecta 1", "Respuesta correcta", "Opción incorrecta 2"]
-              }
-        ]
-            `,
-        },
-        {
-          role: "user",
-          content: `Documento: ${documentContent}\n\n Genera ${quantity} preguntas diferentes con su respuesta y 3 opciones cada una basadas en este texto. Una de las opciones debe ser la respuesta correcta. Las preguntas deben ser únicas y no repetirse entre sí. Asegúrate de que las preguntas sean claras, las respuestas correctas y las opciones plausibles. Responde solo con el JSON array sin texto adicional.`,
-        },
-      ],
-      model: this.model,
-      temperature: 0.6,
-      max_completion_tokens: 2048,
-      frequency_penalty: 0.5,
-      presence_penalty: 0.3,
-      response_format: { type: "json_object" },
-      stream: false,
-    });
-    let result = JSON.parse(response.choices[0].message.content.trim());
-    if (!Array.isArray(result)) {
-      result = [result];
-    }
 
-    if (result.length > quantity) {
-      console.warn(
-        `GroqService: generated ${result.length} flashcards, truncating to requested quantity=${quantity}`,
+    const collected = [];
+    const seenQuestions = new Set();
+
+    for (
+      let attempt = 1;
+      attempt <= this.MAX_GENERATION_ATTEMPTS && collected.length < quantity;
+      attempt += 1
+    ) {
+      const remaining = quantity - collected.length;
+      const requestQuantity = Math.min(remaining + 2, 10);
+      const excluded = Array.from(seenQuestions);
+
+      const response = await this.createChatCompletion({
+        messages: this.buildFlashcardGenerationMessages(
+          documentContent,
+          requestQuantity,
+          excluded,
+        ),
+        preferredModel: this.qualityModel,
+        fallbackModel: this.fastModel,
+        temperature: attempt === 1 ? 0.55 : 0.7,
+        max_completion_tokens: 2200,
+        frequency_penalty: 0.4,
+        presence_penalty: 0.25,
+        responseFormat: { type: "json_object" },
+        stream: false,
+      });
+
+      const payload = this.parseJsonPayload(
+        response.choices[0].message.content,
       );
-      result = result.slice(0, quantity);
+      const rawFlashcards = Array.isArray(payload)
+        ? payload
+        : payload.flashcards || [payload];
+
+      let normalizedBatch = [];
+      try {
+        normalizedBatch = this.sanitizeFlashcards(
+          rawFlashcards,
+          requestQuantity,
+        );
+      } catch (error) {
+        console.warn(
+          `GroqService: intento ${attempt} sin flashcards válidas, reintentando...`,
+        );
+        continue;
+      }
+
+      for (const flashcard of normalizedBatch) {
+        const key = flashcard.question.toLowerCase();
+        if (seenQuestions.has(key)) {
+          continue;
+        }
+
+        seenQuestions.add(key);
+        collected.push(flashcard);
+
+        if (collected.length >= quantity) {
+          break;
+        }
+      }
     }
 
-    return result;
+    if (collected.length < quantity) {
+      throw new Error(
+        `No se pudieron generar ${quantity} flashcards válidas. Se generaron ${collected.length}.`,
+      );
+    }
+
+    return collected.slice(0, quantity);
   }
 
   /**
@@ -88,8 +252,8 @@ class GroqService {
   }
 
   async summarizeChunk(chunk) {
-    console.log(`GroqService: summarizeChunk model=${this.model}`);
-    const response = await this.groq.chat.completions.create({
+    console.log(`GroqService: summarizeChunk model=${this.fastModel}`);
+    const response = await this.createChatCompletion({
       messages: [
         {
           role: "system",
@@ -101,7 +265,7 @@ class GroqService {
           content: `Resume el siguiente texto en pocas frases manteniendo solo las ideas más importantes:\n\n${chunk}`,
         },
       ],
-      model: this.model,
+      preferredModel: this.fastModel,
       temperature: 0.0,
       max_completion_tokens: 64,
       top_p: 1,
@@ -112,8 +276,8 @@ class GroqService {
   }
 
   async summarizeSummary(text) {
-    console.log(`GroqService: summarizeSummary model=${this.model}`);
-    const response = await this.groq.chat.completions.create({
+    console.log(`GroqService: summarizeSummary model=${this.fastModel}`);
+    const response = await this.createChatCompletion({
       messages: [
         {
           role: "system",
@@ -125,10 +289,66 @@ class GroqService {
           content: `Reduce el siguiente resumen a un tamaño más pequeño, manteniendo solo las ideas principales:\n\n${text}`,
         },
       ],
-      model: this.model,
+      preferredModel: this.fastModel,
       temperature: 0.0,
       max_completion_tokens: 64,
       top_p: 1,
+      stream: false,
+    });
+
+    return response.choices[0].message.content.trim();
+  }
+
+  async extractStudyNotes(chunk, { index, totalChunks }) {
+    console.log(
+      `GroqService: extractStudyNotes model=${this.fastModel}, chunk=${index + 1}/${totalChunks}`,
+    );
+    const response = await this.createChatCompletion({
+      messages: [
+        {
+          role: "system",
+          content:
+            'Extrae conocimiento util para estudio y devuelvelo SOLO como JSON con esta forma: {"keyPoints":[],"definitions":[],"facts":[],"examples":[]}. Limita cada lista a maximo 4 items y cada item a una sola frase clara en espanol.',
+        },
+        {
+          role: "user",
+          content: `Fragmento ${index + 1} de ${totalChunks}:\n\n${chunk}`,
+        },
+      ],
+      preferredModel: this.fastModel,
+      temperature: 0.1,
+      max_completion_tokens: 260,
+      responseFormat: { type: "json_object" },
+      stream: false,
+    });
+
+    const payload = this.parseJsonPayload(response.choices[0].message.content);
+    return {
+      keyPoints: Array.isArray(payload.keyPoints) ? payload.keyPoints : [],
+      definitions: Array.isArray(payload.definitions)
+        ? payload.definitions
+        : [],
+      facts: Array.isArray(payload.facts) ? payload.facts : [],
+      examples: Array.isArray(payload.examples) ? payload.examples : [],
+    };
+  }
+
+  async compressKnowledgeContext(text, maxLength) {
+    const response = await this.createChatCompletion({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Comprime notas de estudio sin perder informacion clave. Devuelve texto plano compacto, claro y en espanol.",
+        },
+        {
+          role: "user",
+          content: `Reduce estas notas a menos de ${maxLength} caracteres manteniendo conceptos, definiciones y relaciones importantes:\n\n${text}`,
+        },
+      ],
+      preferredModel: this.fastModel,
+      temperature: 0.0,
+      max_completion_tokens: 900,
       stream: false,
     });
 

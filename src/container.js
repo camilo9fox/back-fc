@@ -57,6 +57,11 @@ class Container {
       return new DocumentProcessingService();
     });
 
+    container.register("generationJobService", () => {
+      const GenerationJobService = require("./modules/flashcards/services/GenerationJobService");
+      return new GenerationJobService();
+    });
+
     container.register("flashCardService", (c) => {
       const FlashCardService = require("./modules/flashcards/services/FlashCardService");
       return new FlashCardService(
@@ -107,6 +112,7 @@ class Container {
         c.get("flashCardService"),
         c.get("manualFlashCardService"),
         c.get("flashCardRepository"),
+        c.get("generationJobService"),
       );
     });
 

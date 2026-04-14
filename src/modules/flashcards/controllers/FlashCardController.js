@@ -3,10 +3,16 @@
  * Handles HTTP requests and responses for flashcard generation, creation and retrieval
  */
 class FlashCardController {
-  constructor(flashCardService, manualFlashCardService, flashCardRepository) {
+  constructor(
+    flashCardService,
+    manualFlashCardService,
+    flashCardRepository,
+    generationJobService,
+  ) {
     this.flashCardService = flashCardService;
     this.manualFlashCardService = manualFlashCardService;
     this.flashCardRepository = flashCardRepository;
+    this.generationJobService = generationJobService;
   }
 
   /**
@@ -17,7 +23,7 @@ class FlashCardController {
   _validateAndExtractInput(req) {
     const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
     const file = req.file || null;
-    const quantity = req.body.quantity || 1;
+    const quantity = Number.parseInt(req.body.quantity, 10) || 1;
 
     if (!file && !text) {
       throw new Error(
@@ -72,6 +78,87 @@ class FlashCardController {
       });
 
       res.json(flashCards);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async generateFlashCardsAsync(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { file, text, quantity } = this._validateAndExtractInput(req);
+      const job = this.generationJobService.createJob({
+        userId,
+        type: "flashcard-generation",
+        metadata: {
+          quantity,
+          fileName: file?.originalname || null,
+          inputMode: file ? "file" : "text",
+          recommendedAsync: this.flashCardService.shouldPreferAsync({
+            file,
+            text,
+          }),
+        },
+      });
+
+      res.status(202).json(job);
+
+      setImmediate(async () => {
+        try {
+          this.generationJobService.updateJob(job.id, userId, {
+            status: "processing",
+            progress: {
+              stage: "Iniciando procesamiento",
+              percent: 2,
+            },
+          });
+
+          const flashCards = await this.flashCardService.processInput({
+            file,
+            text,
+            quantity,
+            userId,
+            onProgress: (progress) => {
+              this.generationJobService.updateJob(job.id, userId, {
+                status: "processing",
+                progress,
+              });
+            },
+          });
+
+          this.generationJobService.completeJob(job.id, userId, {
+            flashcards: flashCards,
+          });
+        } catch (error) {
+          this.generationJobService.failJob(
+            job.id,
+            userId,
+            error.message || "Error generando flashcards",
+          );
+        }
+      });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async getGenerationJob(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const job = this.generationJobService.getJob(req.params.jobId, userId);
+      if (!job) {
+        return res.status(404).json({ error: "Job no encontrado" });
+      }
+
+      res.json(job);
     } catch (error) {
       this._handleError(error, res);
     }

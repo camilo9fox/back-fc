@@ -8,7 +8,7 @@ const config = {
     credentials: true,
   },
   limits: {
-    maxContentLength: 2500, // ~600 tokens, leaving margin for prompt
+    maxContentLength: 4500,
     maxFlashCards: 20,
     minFlashCards: 1,
     fileSizeLimit: 5 * 1024 * 1024, // 5MB
