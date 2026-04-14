@@ -11,7 +11,7 @@ const config = {
     maxContentLength: 4500,
     maxFlashCards: 20,
     minFlashCards: 1,
-    fileSizeLimit: 5 * 1024 * 1024, // 5MB
+    fileSizeLimit: (Number(process.env.FILE_SIZE_LIMIT_MB) || 50) * 1024 * 1024,
     allowedFileTypes: ["application/pdf", "text/plain"],
   },
   jwt: {

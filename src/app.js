@@ -25,6 +25,13 @@ function createApp() {
   app.use("/api/categories", categoryRoutes);
 
   app.use((error, req, res, next) => {
+    if (error && error.code === "LIMIT_FILE_SIZE") {
+      const maxMb = Math.round(config.limits.fileSizeLimit / (1024 * 1024));
+      return res.status(413).json({
+        error: `Archivo demasiado grande. Máximo permitido: ${maxMb}MB.`,
+      });
+    }
+
     console.error(error.stack);
     res.status(500).json({ error: error.message || "Internal server error" });
   });

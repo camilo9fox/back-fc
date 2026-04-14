@@ -13,6 +13,20 @@ class GroqService {
     this.qualityModel =
       process.env.GROQ_QUALITY_MODEL || "llama-3.1-8b-instant";
     this.MAX_GENERATION_ATTEMPTS = 3;
+    this.IRRELEVANT_CARD_PATTERNS = [
+      /\bautor(?:a|es)?\b/i,
+      /\btraductor(?:a|es)?\b/i,
+      /\beditorial\b/i,
+      /\bisbn\b/i,
+      /\bt[ií]tulo\s+completo\b/i,
+      /\bpr[oó]logo\b/i,
+      /\bprefacio\b/i,
+      /\bdedicatoria\b/i,
+      /\bagradecimientos\b/i,
+      /\bpublicado por\b/i,
+      /\bcopyright\b/i,
+      /\bedici[oó]n\b/i,
+    ];
   }
 
   buildFlashcardGenerationMessages(documentContent, quantity, excluded = []) {
@@ -39,13 +53,20 @@ REGLAS OBLIGATORIAS:
 7. No inventes informacion que no aparezca o no se deduzca claramente del material.
 8. Los distractores deben ser plausibles y cercanos al tema, no absurdos.
 9. Mantén variedad entre preguntas.
-10. No agregues explicaciones fuera del JSON.`,
+10. No agregues explicaciones fuera del JSON.
+11. NO preguntes sobre metadatos editoriales: autor, traductor, ISBN, editorial, ano de edicion, portada, prologo, prefacio, dedicatoria, agradecimientos, titulo del libro.
+12. Las preguntas deben evaluar comprension del contenido conceptual del material (ideas, teorias, procesos, relaciones, argumentos, evidencia, aplicaciones).`,
       },
       {
         role: "user",
-        content: `Material de estudio:\n${documentContent}\n\nGenera ${quantity} flashcards distintas.${excludedBlock}\n\nDevuelve el JSON con esta forma exacta:\n{"flashcards":[{"question":"...","answer":"...","options":["...","...","..."]}]}`,
+        content: `Material de estudio:\n${documentContent}\n\nGenera ${quantity} flashcards distintas enfocadas en contenido académico útil para estudiar.${excludedBlock}\n\nIMPORTANTE: ignora cualquier metadato editorial o bibliográfico si aparece en el texto.\n\nDevuelve el JSON con esta forma exacta:\n{"flashcards":[{"question":"...","answer":"...","options":["...","...","..."]}]}`,
       },
     ];
+  }
+
+  isRelevantFlashcard(card) {
+    const text = `${card.question || ""} ${card.answer || ""}`;
+    return !this.IRRELEVANT_CARD_PATTERNS.some((pattern) => pattern.test(text));
   }
 
   async createChatCompletion({
@@ -127,6 +148,10 @@ REGLAS OBLIGATORIAS:
 
       if (!question || !answer) continue;
       if (seenQuestions.has(question.toLowerCase())) continue;
+
+      if (!this.isRelevantFlashcard({ question, answer })) {
+        continue;
+      }
 
       if (!options.includes(answer)) {
         options.push(answer);

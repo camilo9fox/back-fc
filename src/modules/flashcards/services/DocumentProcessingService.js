@@ -8,16 +8,62 @@ class DocumentProcessingService {
     this.MAX_CHUNK_LENGTH = 5200;
     this.CHUNK_OVERLAP = 120;
     this.MAX_PARALLEL_CHUNKS = 6;
+    this.METADATA_LINE_PATTERNS = [
+      /\bisbn\b/i,
+      /\beditorial\b/i,
+      /\bimpreso en\b/i,
+      /\bpublicado por\b/i,
+      /\btraducci[oó]n\b/i,
+      /\btraductor(?:a|es)?\b/i,
+      /\bcopyright\b/i,
+      /\bphilemon foundation\b/i,
+      /\bserie\b\s+filem[oó]n\b/i,
+      /^\s*(?:pr[oó]logo|prefacio|dedicatoria|agradecimientos)\s*$/i,
+      /^\s*p[aá]gina\s+\d+\s*$/i,
+    ];
   }
 
   normalizeText(text) {
-    return text
+    const cleaned = text
       .replace(/\r/g, "")
       .replace(/-\n/g, "")
       .replace(/\n{3,}/g, "\n\n")
       .replace(/[ \t]+\n/g, "\n")
       .replace(/\n[ \t]+/g, "\n")
       .replace(/[ \t]{2,}/g, " ")
+      .trim();
+
+    return this.removeLowValueLines(cleaned);
+  }
+
+  removeLowValueLines(text) {
+    const lines = text.split("\n");
+    const filteredLines = lines.filter((line) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) {
+        return true;
+      }
+
+      if (trimmedLine.length <= 2) {
+        return false;
+      }
+
+      if (/^\d+$/.test(trimmedLine)) {
+        return false;
+      }
+
+      for (const pattern of this.METADATA_LINE_PATTERNS) {
+        if (pattern.test(trimmedLine)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    return filteredLines
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
   }
 
@@ -207,10 +253,12 @@ class DocumentProcessingService {
       return "";
     }
 
-    const pickIndices = new Set([0, chunks.length - 1]);
-    pickIndices.add(Math.floor(chunks.length / 2));
-    pickIndices.add(Math.floor(chunks.length / 3));
-    pickIndices.add(Math.floor((chunks.length * 2) / 3));
+    const pickIndices = new Set([
+      Math.floor(chunks.length * 0.2),
+      Math.floor(chunks.length * 0.4),
+      Math.floor(chunks.length * 0.6),
+      Math.floor(chunks.length * 0.8),
+    ]);
 
     // Also prioritize denser chunks by unique word count to preserve salient info.
     const scored = chunks
@@ -219,10 +267,21 @@ class DocumentProcessingService {
           .map((word) => word.trim())
           .filter(Boolean);
         const uniqueWordCount = new Set(words).size;
-        return { index, chunk, score: uniqueWordCount };
+        const conceptMatches = (
+          chunk.match(
+            /\b(concepto|definici[oó]n|proceso|m[eé]todo|teor[ií]a|modelo|evidencia|causa|efecto|aplicaci[oó]n|hip[oó]tesis|an[aá]lisis|resultado|conclusi[oó]n)\b/gi,
+          ) || []
+        ).length;
+        const metadataPenalty = this.METADATA_LINE_PATTERNS.some((pattern) =>
+          pattern.test(chunk),
+        )
+          ? 25
+          : 0;
+        const score = uniqueWordCount + conceptMatches * 8 - metadataPenalty;
+        return { index, chunk, score };
       })
       .sort((a, b) => b.score - a.score)
-      .slice(0, 4);
+      .slice(0, 6);
 
     for (const item of scored) {
       pickIndices.add(item.index);

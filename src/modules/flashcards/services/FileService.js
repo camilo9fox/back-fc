@@ -1,4 +1,5 @@
 const pdfParse = require("pdf-parse");
+const config = require("../../../shared/config/config");
 
 /**
  * Service class for file processing operations
@@ -6,8 +7,8 @@ const pdfParse = require("pdf-parse");
  */
 class FileService {
   constructor() {
-    // Límite de tamaño de archivo: 5MB
-    this.MAX_FILE_SIZE = 5 * 1024 * 1024;
+    this.MAX_FILE_SIZE = config.limits.fileSizeLimit;
+    this.SUPPORTED_TYPES = config.limits.allowedFileTypes;
   }
 
   /**
@@ -16,8 +17,7 @@ class FileService {
    * @returns {boolean} True if supported
    */
   isSupportedFileType(mimetype) {
-    const supportedTypes = ["application/pdf", "text/plain"];
-    return supportedTypes.includes(mimetype);
+    return this.SUPPORTED_TYPES.includes(mimetype);
   }
 
   /**
@@ -41,7 +41,7 @@ class FileService {
 
     if (!this.isValidFileSize(file.size)) {
       throw new Error(
-        `Archivo demasiado grande. Máximo ${this.MAX_FILE_SIZE / (1024 * 1024)}MB permitido.`,
+        `Archivo demasiado grande. Máximo ${Math.round(this.MAX_FILE_SIZE / (1024 * 1024))}MB permitido.`,
       );
     }
 
