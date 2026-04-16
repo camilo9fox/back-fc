@@ -199,21 +199,24 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { question, answer, options, categoryId } = req.body;
+      const { question, answer, categoryId } = req.body;
 
-      if (!question || !answer || !options) {
+      if (!question || !answer) {
         return res.status(400).json({
           error:
-            "Se requieren question, answer y options para crear una flashcard manual.",
+            "Se requieren question y answer para crear una flashcard manual.",
+        });
+      }
+
+      if (!categoryId) {
+        return res.status(400).json({
+          error:
+            "categoryId es requerido. Toda flashcard debe pertenecer a una categoría.",
         });
       }
 
       const flashCard = await this.manualFlashCardService.createFlashCard(
-        {
-          question,
-          answer,
-          options,
-        },
+        { question, answer },
         userId,
         categoryId,
       );

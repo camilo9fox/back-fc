@@ -39,10 +39,9 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
           {
             question: flashCard.question,
             answer: flashCard.answer,
-            options: flashCard.options,
             source: flashCard.source || "manual",
             user_id: flashCard.userId,
-            category_id: flashCard.categoryId || null,
+            category_id: flashCard.categoryId,
           },
         ])
         .select()
@@ -75,10 +74,9 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
       const flashcardsToInsert = flashCards.map((card) => ({
         question: card.question,
         answer: card.answer,
-        options: card.options,
         source: card.source || "manual",
         user_id: userId,
-        category_id: card.categoryId || null,
+        category_id: card.categoryId,
       }));
 
       const { data, error } = await this.supabase

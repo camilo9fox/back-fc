@@ -43,17 +43,17 @@ class Container {
 
     // Register services
     container.register("groqService", () => {
-      const GroqService = require("./modules/flashcards/services/GroqService");
+      const GroqService = require("./shared/services/GroqService");
       return new GroqService(config.groqApiKey);
     });
 
     container.register("fileService", () => {
-      const FileService = require("./modules/flashcards/services/FileService");
+      const FileService = require("./shared/services/FileService");
       return new FileService();
     });
 
     container.register("documentProcessingService", () => {
-      const DocumentProcessingService = require("./modules/flashcards/services/DocumentProcessingService");
+      const DocumentProcessingService = require("./shared/services/DocumentProcessingService");
       return new DocumentProcessingService();
     });
 
@@ -140,6 +140,60 @@ class Container {
     container.register("categoryRoutes", (c) => {
       const createCategoryRouter = require("./modules/categories/routes");
       return createCategoryRouter(c.get("categoryController"));
+    });
+
+    // Quiz services
+    container.register("quizRepository", () => {
+      const SupabaseQuizRepository = require("./modules/quizzes/repositories/implementations/SupabaseQuizRepository");
+      return new SupabaseQuizRepository();
+    });
+
+    container.register("quizService", (c) => {
+      const QuizService = require("./modules/quizzes/services/QuizService");
+      return new QuizService(
+        c.get("quizRepository"),
+        c.get("categoryService"),
+        c.get("groqService"),
+        c.get("fileService"),
+        c.get("documentProcessingService"),
+      );
+    });
+
+    container.register("quizController", (c) => {
+      const QuizController = require("./modules/quizzes/controllers/QuizController");
+      return new QuizController(c.get("quizService"));
+    });
+
+    container.register("quizRoutes", (c) => {
+      const createQuizRouter = require("./modules/quizzes/routes/quizRoutes");
+      return createQuizRouter(c.get("quizController"));
+    });
+
+    // True/False services
+    container.register("trueFalseRepository", () => {
+      const SupabaseTrueFalseRepository = require("./modules/truefalse/repositories/implementations/SupabaseTrueFalseRepository");
+      return new SupabaseTrueFalseRepository();
+    });
+
+    container.register("trueFalseService", (c) => {
+      const TrueFalseService = require("./modules/truefalse/services/TrueFalseService");
+      return new TrueFalseService(
+        c.get("trueFalseRepository"),
+        c.get("categoryService"),
+        c.get("groqService"),
+        c.get("fileService"),
+        c.get("documentProcessingService"),
+      );
+    });
+
+    container.register("trueFalseController", (c) => {
+      const TrueFalseController = require("./modules/truefalse/controllers/TrueFalseController");
+      return new TrueFalseController(c.get("trueFalseService"));
+    });
+
+    container.register("trueFalseRoutes", (c) => {
+      const createTrueFalseRouter = require("./modules/truefalse/routes/trueFalseRoutes");
+      return createTrueFalseRouter(c.get("trueFalseController"));
     });
 
     return container;

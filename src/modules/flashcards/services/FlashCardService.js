@@ -139,7 +139,6 @@ class FlashCardService {
       const flashCardDto = new FlashCardDto(
         flashCardData.question,
         flashCardData.answer,
-        flashCardData.options,
       );
 
       if (!flashCardDto.isValid()) {
@@ -149,8 +148,7 @@ class FlashCardService {
       flashCards.push({
         question: flashCardDto.question,
         answer: flashCardDto.answer,
-        options: flashCardDto.options,
-        categoryId: defaultCategoryId, // Include default category
+        categoryId: defaultCategoryId,
       });
     }
 

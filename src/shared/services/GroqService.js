@@ -46,20 +46,18 @@ class GroqService {
 REGLAS OBLIGATORIAS:
 1. Devuelve SOLO un objeto JSON valido con la forma {"flashcards": [...] }.
 2. Cada question debe estar muy bien redactada, ser precisa, autoexplicativa y sonar natural.
-3. Cada answer debe ser breve pero completa.
-4. options debe contener exactamente 3 opciones unicas, incluyendo answer exactamente una vez.
-5. Evita preguntas repetidas, triviales o ambiguas.
-6. Prioriza definiciones, relaciones causa-efecto, comparaciones, procesos, ejemplos y aplicaciones.
-7. No inventes informacion que no aparezca o no se deduzca claramente del material.
-8. Los distractores deben ser plausibles y cercanos al tema, no absurdos.
-9. Mantén variedad entre preguntas.
-10. No agregues explicaciones fuera del JSON.
-11. NO preguntes sobre metadatos editoriales: autor, traductor, ISBN, editorial, ano de edicion, portada, prologo, prefacio, dedicatoria, agradecimientos, titulo del libro.
-12. Las preguntas deben evaluar comprension del contenido conceptual del material (ideas, teorias, procesos, relaciones, argumentos, evidencia, aplicaciones).`,
+3. Cada answer debe ser breve pero completa, una o dos oraciones maximo.
+4. Evita preguntas repetidas, triviales o ambiguas.
+5. Prioriza definiciones, relaciones causa-efecto, comparaciones, procesos, ejemplos y aplicaciones.
+6. No inventes informacion que no aparezca o no se deduzca claramente del material.
+7. Mantén variedad entre preguntas.
+8. No agregues explicaciones fuera del JSON.
+9. NO preguntes sobre metadatos editoriales: autor, traductor, ISBN, editorial, ano de edicion, portada, prologo, prefacio, dedicatoria, agradecimientos, titulo del libro.
+10. Las preguntas deben evaluar comprension del contenido conceptual del material (ideas, teorias, procesos, relaciones, argumentos, evidencia, aplicaciones).`,
       },
       {
         role: "user",
-        content: `Material de estudio:\n${documentContent}\n\nGenera ${quantity} flashcards distintas enfocadas en contenido académico útil para estudiar.${excludedBlock}\n\nIMPORTANTE: ignora cualquier metadato editorial o bibliográfico si aparece en el texto.\n\nDevuelve el JSON con esta forma exacta:\n{"flashcards":[{"question":"...","answer":"...","options":["...","...","..."]}]}`,
+        content: `Material de estudio:\n${documentContent}\n\nGenera ${quantity} flashcards distintas enfocadas en contenido academico util para estudiar.${excludedBlock}\n\nIMPORTANTE: ignora cualquier metadato editorial o bibliografico si aparece en el texto.\n\nDevuelve el JSON con esta forma exacta:\n{"flashcards":[{"question":"...","answer":"..."}]}`,
       },
     ];
   }
@@ -136,15 +134,6 @@ REGLAS OBLIGATORIAS:
 
       const question = String(card.question || "").trim();
       const answer = String(card.answer || "").trim();
-      const options = Array.isArray(card.options)
-        ? Array.from(
-            new Set(
-              card.options
-                .map((option) => String(option || "").trim())
-                .filter(Boolean),
-            ),
-          )
-        : [];
 
       if (!question || !answer) continue;
       if (seenQuestions.has(question.toLowerCase())) continue;
@@ -153,22 +142,10 @@ REGLAS OBLIGATORIAS:
         continue;
       }
 
-      if (!options.includes(answer)) {
-        options.push(answer);
-      }
-
-      const distractors = options.filter((option) => option !== answer);
-      if (distractors.length < 2) {
-        continue;
-      }
-
-      const normalizedOptions = [answer, distractors[0], distractors[1]];
-
       seenQuestions.add(question.toLowerCase());
       normalized.push({
         question: question.endsWith("?") ? question : `${question}?`,
         answer,
-        options: normalizedOptions,
       });
 
       if (normalized.length === quantity) {
@@ -378,6 +355,254 @@ REGLAS OBLIGATORIAS:
     });
 
     return response.choices[0].message.content.trim();
+  }
+
+  // ─── Quiz Generation ─────────────────────────────────────────────────────────
+
+  buildQuizGenerationMessages(content, quantity) {
+    return [
+      {
+        role: "system",
+        content: `Eres un pedagogo experto en crear preguntas de multiple opcion de alta calidad en espanol neutro.
+
+REGLAS OBLIGATORIAS:
+1. Devuelve SOLO un objeto JSON valido con la forma {"questions": [...] }.
+2. Cada pregunta debe tener exactamente 4 opciones distintas, claras y plausibles.
+3. La respuesta correcta (correct_answer) DEBE ser una de las 4 opciones exactamente como aparece en el array options.
+4. Incluye una breve explicacion (explanation) de por que la respuesta es correcta.
+5. Las preguntas deben evaluar comprension conceptual: definiciones, causas, efectos, comparaciones, procesos.
+6. No inventes informacion que no se deduzca claramente del material.
+7. Evita preguntas triviales, repetidas o ambiguas.
+8. No preguntes sobre metadatos: autor, ISBN, editorial, ano de edicion, portada.
+9. Escribe en espanol neutro. No agregues nada fuera del JSON.`,
+      },
+      {
+        role: "user",
+        content: `Material de estudio:\n${content}\n\nGenera ${quantity} preguntas de multiple opcion distintas basadas en el contenido academico.\n\nDevuelve el JSON con esta forma exacta:\n{"questions":[{"question":"...","options":["A","B","C","D"],"correct_answer":"A","explanation":"..."}]}`,
+      },
+    ];
+  }
+
+  sanitizeQuizQuestions(rawQuestions, quantity) {
+    const normalized = [];
+    const seenQuestions = new Set();
+
+    for (const item of rawQuestions) {
+      if (!item) continue;
+
+      const question = String(item.question || "").trim();
+      const options = Array.isArray(item.options)
+        ? item.options.map((o) => String(o).trim()).filter(Boolean)
+        : [];
+      const correctAnswer = String(item.correct_answer || "").trim();
+      const explanation = String(item.explanation || "").trim();
+
+      if (!question || options.length < 2) continue;
+      if (!correctAnswer || !options.includes(correctAnswer)) continue;
+      if (seenQuestions.has(question.toLowerCase())) continue;
+
+      seenQuestions.add(question.toLowerCase());
+      normalized.push({
+        question,
+        options,
+        correct_answer: correctAnswer,
+        explanation: explanation || undefined,
+      });
+
+      if (normalized.length === quantity) break;
+    }
+
+    if (normalized.length === 0) {
+      throw new Error("La IA no devolvió preguntas de cuestionario válidas.");
+    }
+
+    return normalized;
+  }
+
+  async generateQuizQuestions(content, quantity = 5) {
+    console.log(
+      `GroqService: generateQuizQuestions model=${this.qualityModel}, quantity=${quantity}`,
+    );
+
+    const collected = [];
+    const seenQuestions = new Set();
+
+    for (
+      let attempt = 1;
+      attempt <= this.MAX_GENERATION_ATTEMPTS && collected.length < quantity;
+      attempt += 1
+    ) {
+      const remaining = quantity - collected.length;
+      const requestQuantity = Math.min(remaining + 2, 10);
+
+      const response = await this.createChatCompletion({
+        messages: this.buildQuizGenerationMessages(content, requestQuantity),
+        preferredModel: this.qualityModel,
+        fallbackModel: this.fastModel,
+        temperature: attempt === 1 ? 0.55 : 0.7,
+        max_completion_tokens: 2500,
+        frequency_penalty: 0.3,
+        responseFormat: { type: "json_object" },
+        stream: false,
+      });
+
+      const payload = this.parseJsonPayload(
+        response.choices[0].message.content,
+      );
+      const rawItems = Array.isArray(payload)
+        ? payload
+        : payload.questions || [payload];
+
+      let batch = [];
+      try {
+        batch = this.sanitizeQuizQuestions(rawItems, requestQuantity);
+      } catch {
+        console.warn(
+          `GroqService: intento ${attempt} sin preguntas quiz válidas, reintentando...`,
+        );
+        continue;
+      }
+
+      for (const item of batch) {
+        const key = item.question.toLowerCase();
+        if (seenQuestions.has(key)) continue;
+        seenQuestions.add(key);
+        collected.push(item);
+        if (collected.length >= quantity) break;
+      }
+    }
+
+    if (collected.length < quantity) {
+      throw new Error(
+        `No se pudieron generar ${quantity} preguntas válidas. Se generaron ${collected.length}.`,
+      );
+    }
+
+    return collected.slice(0, quantity);
+  }
+
+  // ─── True/False Generation ───────────────────────────────────────────────────
+
+  buildTrueFalseGenerationMessages(content, quantity) {
+    return [
+      {
+        role: "system",
+        content: `Eres un pedagogo experto en crear afirmaciones de verdadero o falso de alta calidad en espanol neutro.
+
+REGLAS OBLIGATORIAS:
+1. Devuelve SOLO un objeto JSON valido con la forma {"questions": [...] }.
+2. Cada afirmacion (statement) debe ser clara, concisa y no ambigua.
+3. El campo is_true debe ser un booleano (true o false), nunca un string.
+4. Incluye una breve explicacion (explanation) de por que es verdadera o falsa.
+5. Equilibra la cantidad de afirmaciones verdaderas y falsas.
+6. Basa las afirmaciones solo en el contenido del material proporcionado.
+7. Evita afirmaciones triviales u obviamente verdaderas/falsas sin contexto.
+8. No inventes informacion que no se deduzca claramente del material.
+9. Escribe en espanol neutro. No agregues nada fuera del JSON.`,
+      },
+      {
+        role: "user",
+        content: `Material de estudio:\n${content}\n\nGenera ${quantity} afirmaciones de verdadero o falso basadas en el contenido academico.\n\nDevuelve el JSON con esta forma exacta:\n{"questions":[{"statement":"...","is_true":true,"explanation":"..."}]}`,
+      },
+    ];
+  }
+
+  sanitizeTrueFalseStatements(rawQuestions, quantity) {
+    const normalized = [];
+    const seenStatements = new Set();
+
+    for (const item of rawQuestions) {
+      if (!item) continue;
+
+      const statement = String(item.statement || "").trim();
+      const explanation = String(item.explanation || "").trim();
+
+      if (!statement) continue;
+      if (typeof item.is_true !== "boolean") continue;
+      if (seenStatements.has(statement.toLowerCase())) continue;
+
+      seenStatements.add(statement.toLowerCase());
+      normalized.push({
+        statement,
+        is_true: item.is_true,
+        explanation: explanation || undefined,
+      });
+
+      if (normalized.length === quantity) break;
+    }
+
+    if (normalized.length === 0) {
+      throw new Error(
+        "La IA no devolvió afirmaciones de verdadero/falso válidas.",
+      );
+    }
+
+    return normalized;
+  }
+
+  async generateTrueFalseStatements(content, quantity = 10) {
+    console.log(
+      `GroqService: generateTrueFalseStatements model=${this.qualityModel}, quantity=${quantity}`,
+    );
+
+    const collected = [];
+    const seenStatements = new Set();
+
+    for (
+      let attempt = 1;
+      attempt <= this.MAX_GENERATION_ATTEMPTS && collected.length < quantity;
+      attempt += 1
+    ) {
+      const remaining = quantity - collected.length;
+      const requestQuantity = Math.min(remaining + 2, 15);
+
+      const response = await this.createChatCompletion({
+        messages: this.buildTrueFalseGenerationMessages(
+          content,
+          requestQuantity,
+        ),
+        preferredModel: this.qualityModel,
+        fallbackModel: this.fastModel,
+        temperature: attempt === 1 ? 0.55 : 0.7,
+        max_completion_tokens: 2500,
+        frequency_penalty: 0.3,
+        responseFormat: { type: "json_object" },
+        stream: false,
+      });
+
+      const payload = this.parseJsonPayload(
+        response.choices[0].message.content,
+      );
+      const rawItems = Array.isArray(payload)
+        ? payload
+        : payload.questions || [payload];
+
+      let batch = [];
+      try {
+        batch = this.sanitizeTrueFalseStatements(rawItems, requestQuantity);
+      } catch {
+        console.warn(
+          `GroqService: intento ${attempt} sin afirmaciones válidas, reintentando...`,
+        );
+        continue;
+      }
+
+      for (const item of batch) {
+        const key = item.statement.toLowerCase();
+        if (seenStatements.has(key)) continue;
+        seenStatements.add(key);
+        collected.push(item);
+        if (collected.length >= quantity) break;
+      }
+    }
+
+    if (collected.length < quantity) {
+      throw new Error(
+        `No se pudieron generar ${quantity} afirmaciones válidas. Se generaron ${collected.length}.`,
+      );
+    }
+
+    return collected.slice(0, quantity);
   }
 }
 

@@ -21,11 +21,7 @@ class ManualFlashCardService {
    * @param {string} categoryId - Category ID (optional, will use default "General" if not provided)
    * @returns {Promise<Object>} Created flashcard data with ID and timestamps
    */
-  async createFlashCard(
-    { question, answer, options },
-    userId,
-    categoryId = null,
-  ) {
+  async createFlashCard({ question, answer }, userId, categoryId = null) {
     if (!userId) {
       throw new Error("User ID is required to create flashcard");
     }
@@ -49,7 +45,6 @@ class ManualFlashCardService {
     const validatedFlashCard = this._validateFlashCardData({
       question,
       answer,
-      options,
     });
 
     // Save to database
@@ -126,7 +121,7 @@ class ManualFlashCardService {
    * @returns {Object} Validated flashcard data
    * @private
    */
-  _validateFlashCardData({ question, answer, options }) {
+  _validateFlashCardData({ question, answer }) {
     if (
       !question ||
       typeof question !== "string" ||
@@ -139,33 +134,9 @@ class ManualFlashCardService {
       throw new Error("La respuesta es requerida y debe ser un texto válido.");
     }
 
-    if (!Array.isArray(options) || options.length < 2) {
-      throw new Error("Debe proporcionar al menos 2 opciones.");
-    }
-
-    // Validate all options are strings and not empty
-    if (
-      !options.every(
-        (option) => typeof option === "string" && option.trim().length > 0,
-      )
-    ) {
-      throw new Error("Todas las opciones deben ser textos válidos.");
-    }
-
-    // Check if answer is included in options
-    const trimmedAnswer = answer.trim();
-    const trimmedOptions = options.map((opt) => opt.trim());
-
-    if (!trimmedOptions.includes(trimmedAnswer)) {
-      throw new Error(
-        "La respuesta correcta debe estar incluida en las opciones.",
-      );
-    }
-
     return {
       question: question.trim(),
-      answer: trimmedAnswer,
-      options: trimmedOptions,
+      answer: answer.trim(),
     };
   }
 }

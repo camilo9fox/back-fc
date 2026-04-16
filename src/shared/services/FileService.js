@@ -1,5 +1,5 @@
 const pdfParse = require("pdf-parse");
-const config = require("../../../shared/config/config");
+const config = require("../config/config");
 
 /**
  * Service class for file processing operations
