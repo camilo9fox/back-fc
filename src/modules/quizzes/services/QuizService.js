@@ -16,12 +16,13 @@ class QuizService {
   }
 
   async createQuiz(quizData, userId) {
+    const categoryId = quizData.categoryId || quizData.category_id;
     const questions = (quizData.questions || []).map((q, i) =>
       QuizDto.buildQuestion(q, i),
     );
     const dto = new QuizDto(
       quizData.title,
-      quizData.categoryId,
+      categoryId,
       quizData.description,
       questions,
     );
@@ -32,7 +33,7 @@ class QuizService {
     }
 
     const category = await this.categoryService.getCategoryById(
-      quizData.categoryId,
+      categoryId,
       userId,
     );
     if (!category) {
@@ -68,7 +69,7 @@ class QuizService {
     content = await this.documentProcessingService.buildStudyContext(
       content,
       this.groqService,
-      { maxLength: 9000 },
+      { maxLength: 4500 },
     );
 
     const rawQuestions = await this.groqService.generateQuizQuestions(

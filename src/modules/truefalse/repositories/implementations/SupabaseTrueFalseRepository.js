@@ -59,14 +59,16 @@ class SupabaseTrueFalseRepository {
 
       const { data, error } = await this.supabase
         .from("true_false_sets")
-        .select(`*, true_false_questions(*)`)
+        .select(
+          `*, true_false_questions(*), categories(id, title, description)`,
+        )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (error)
         throw new Error(`Error fetching true/false sets: ${error.message}`);
-      return data || [];
+      return (data || []).map(this._normalize);
     } catch (error) {
       console.error("SupabaseTrueFalseRepository.findAllByUser error:", error);
       throw error;
@@ -77,7 +79,9 @@ class SupabaseTrueFalseRepository {
     try {
       const { data, error } = await this.supabase
         .from("true_false_sets")
-        .select(`*, true_false_questions(*)`)
+        .select(
+          `*, true_false_questions(*), categories(id, title, description)`,
+        )
         .eq("id", id)
         .eq("user_id", userId)
         .single();
@@ -87,11 +91,21 @@ class SupabaseTrueFalseRepository {
         throw new Error(`Error finding true/false set: ${error.message}`);
       }
 
-      return data;
+      return this._normalize(data);
     } catch (error) {
       console.error("SupabaseTrueFalseRepository.findById error:", error);
       throw error;
     }
+  }
+
+  _normalize(set) {
+    if (!set) return set;
+    const { true_false_questions, categories, ...rest } = set;
+    return {
+      ...rest,
+      questions: true_false_questions ?? [],
+      category: categories ?? null,
+    };
   }
 
   async update(id, userId, updateData) {

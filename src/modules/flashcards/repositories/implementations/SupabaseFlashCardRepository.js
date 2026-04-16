@@ -81,15 +81,21 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .insert(flashcardsToInsert)
-        .select();
+        .insert(flashcardsToInsert).select(`
+          *,
+          categories (
+            id,
+            title,
+            description
+          )
+        `);
 
       if (error) {
         console.error("Supabase createMany error:", error);
         throw new Error(`Error creating flashcards: ${error.message}`);
       }
 
-      return data;
+      return (data || []).map(this._normalize);
     } catch (error) {
       console.error("SupabaseFlashCardRepository.createMany error:", error);
       throw error;
@@ -180,11 +186,22 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         throw new Error(`Error finding flashcards: ${error.message}`);
       }
 
-      return data || [];
+      return (data || []).map(this._normalize);
     } catch (error) {
       console.error("SupabaseFlashCardRepository.findAll error:", error);
       throw error;
     }
+  }
+
+  /**
+   * Normalizes Supabase join field from 'categories' to 'category'
+   * @param {Object} card
+   * @returns {Object}
+   */
+  _normalize(card) {
+    if (!card) return card;
+    const { categories, ...rest } = card;
+    return { ...rest, category: categories ?? null };
   }
 
   /**

@@ -19,12 +19,13 @@ class TrueFalseService {
   }
 
   async createSet(setData, userId) {
+    const categoryId = setData.categoryId || setData.category_id;
     const questions = (setData.questions || []).map((q, i) =>
       TrueFalseSetDto.buildQuestion(q, i),
     );
     const dto = new TrueFalseSetDto(
       setData.title,
-      setData.categoryId,
+      categoryId,
       setData.description,
       questions,
     );
@@ -35,7 +36,7 @@ class TrueFalseService {
     }
 
     const category = await this.categoryService.getCategoryById(
-      setData.categoryId,
+      categoryId,
       userId,
     );
     if (!category) {
@@ -69,7 +70,7 @@ class TrueFalseService {
     content = await this.documentProcessingService.buildStudyContext(
       content,
       this.groqService,
-      { maxLength: 9000 },
+      { maxLength: 4500 },
     );
 
     const rawStatements = await this.groqService.generateTrueFalseStatements(

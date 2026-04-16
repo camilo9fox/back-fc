@@ -10,7 +10,7 @@ class QuizController {
         return res.status(401).json({ error: "Authentication required" });
 
       const quiz = await this.quizService.createQuiz(req.body, userId);
-      res.status(200).json({ questions: quiz });
+      res.status(201).json(quiz);
     } catch (error) {
       this._handleError(error, res);
     }

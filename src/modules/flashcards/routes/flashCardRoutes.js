@@ -62,11 +62,15 @@ function createFlashCardRouter(flashCardController) {
     flashCardController.saveFlashCards(req, res),
   );
 
-  router.get("/flashcards", authMiddleware, (req, res) =>
+  router.get("/", authMiddleware, (req, res) =>
     flashCardController.getFlashCards(req, res),
   );
 
-  router.get("/flashcards/:id", authMiddleware, (req, res) =>
+  router.delete("/:id", authMiddleware, (req, res) =>
+    flashCardController.deleteFlashCard(req, res),
+  );
+
+  router.get("/:id", authMiddleware, (req, res) =>
     flashCardController.getFlashCardById(req, res),
   );
 

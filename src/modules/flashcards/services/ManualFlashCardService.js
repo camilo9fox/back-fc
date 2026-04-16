@@ -92,9 +92,11 @@ class ManualFlashCardService {
       try {
         const validatedCard = this._validateFlashCardData(flashCardsData[i]);
         const source = flashCardsData[i].source === "ai" ? "ai" : "manual";
+        const cardCategoryId = flashCardsData[i].categoryId || categoryId;
         validatedFlashCards.push({
           ...validatedCard,
           source,
+          categoryId: cardCategoryId,
         });
       } catch (error) {
         throw new Error(`Error en la flashcard ${i + 1}: ${error.message}`);

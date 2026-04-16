@@ -304,6 +304,24 @@ class FlashCardController {
    * @param {Object} req - Express request object
    * @param {Object} res - Express response object
    */
+  async deleteFlashCard(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { id } = req.params;
+      const existing = await this.flashCardRepository.findById(id, userId);
+      if (!existing) {
+        return res.status(404).json({ error: "Flashcard not found" });
+      }
+      await this.flashCardRepository.delete(id);
+      res.status(200).json({ success: true });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
   async getFlashCards(req, res) {
     try {
       const userId = req.user?.id;

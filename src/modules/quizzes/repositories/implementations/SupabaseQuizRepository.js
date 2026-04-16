@@ -57,13 +57,13 @@ class SupabaseQuizRepository {
 
       const { data, error } = await this.supabase
         .from("quizzes")
-        .select(`*, quiz_questions(*)`)
+        .select(`*, quiz_questions(*), categories(id, title, description)`)
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (error) throw new Error(`Error fetching quizzes: ${error.message}`);
-      return data || [];
+      return (data || []).map(this._normalize);
     } catch (error) {
       console.error("SupabaseQuizRepository.findAllByUser error:", error);
       throw error;
@@ -74,7 +74,7 @@ class SupabaseQuizRepository {
     try {
       const { data, error } = await this.supabase
         .from("quizzes")
-        .select(`*, quiz_questions(*)`)
+        .select(`*, quiz_questions(*), categories(id, title, description)`)
         .eq("id", id)
         .eq("user_id", userId)
         .single();
@@ -84,11 +84,21 @@ class SupabaseQuizRepository {
         throw new Error(`Error finding quiz: ${error.message}`);
       }
 
-      return data;
+      return this._normalize(data);
     } catch (error) {
       console.error("SupabaseQuizRepository.findById error:", error);
       throw error;
     }
+  }
+
+  _normalize(quiz) {
+    if (!quiz) return quiz;
+    const { quiz_questions, categories, ...rest } = quiz;
+    return {
+      ...rest,
+      questions: quiz_questions ?? [],
+      category: categories ?? null,
+    };
   }
 
   async update(id, userId, updateData) {
