@@ -130,7 +130,7 @@ class TrueFalseController {
         userId,
       });
 
-      res.status(201).json(set);
+      res.status(200).json({ questions: set });
     } catch (error) {
       this._handleError(error, res);
     }

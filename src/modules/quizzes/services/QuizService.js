@@ -65,10 +65,10 @@ class QuizService {
       throw new Error("Categoría no encontrada o acceso denegado.");
 
     let content = file ? await this.fileService.extractText(file) : text;
-    content = this.documentProcessingService.normalizeText(content);
-    content = this.documentProcessingService.validateAndTruncateContent(
+    content = await this.documentProcessingService.buildStudyContext(
       content,
-      15000,
+      this.groqService,
+      { maxLength: 9000 },
     );
 
     const rawQuestions = await this.groqService.generateQuizQuestions(
@@ -76,21 +76,14 @@ class QuizService {
       quantity,
     );
 
-    const questions = rawQuestions.map((q, i) => ({
+    // Devuelve las preguntas generadas sin persistir — el cliente decide si guardar
+    return rawQuestions.map((q, i) => ({
       question: q.question,
       options: q.options,
       correct_answer: q.correct_answer,
       explanation: q.explanation || null,
       order_index: i,
     }));
-
-    return this.quizRepository.create({
-      userId,
-      categoryId,
-      title: title.trim(),
-      description: null,
-      questions,
-    });
   }
 
   async getQuizzes(userId, options = {}) {

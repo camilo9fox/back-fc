@@ -165,87 +165,22 @@ class FlashCardService {
   }
 
   /**
-   * Validates content length and truncates if necessary
-   * @param {string} content - The document content
-   * @returns {string} Validated and potentially truncated content
+   * Prepares a large document for generation by delegating to the shared
+   * DocumentProcessingService.buildStudyContext pipeline.
    */
   async processLargeDocument(content, { onProgress } = {}) {
-    const chunks = this.documentProcessingService.splitIntoChunks(content);
-    console.log(
-      `FlashCardService: documento grande dividido en ${chunks.length} chunks`,
-    );
-
-    this.reportProgress(onProgress, "Analizando el documento", 20, {
-      chunks: chunks.length,
-    });
-
-    if (chunks.length >= this.FAST_PATH_MIN_CHUNKS) {
-      this.reportProgress(onProgress, "Modo rapido para documento grande", 36, {
-        chunks: chunks.length,
-      });
-
-      const fastContext = this.documentProcessingService.buildFastContext(
-        chunks,
-        this.MAX_CONTENT_LENGTH,
-      );
-
-      this.reportProgress(onProgress, "Material listo para generar", 78, {
-        mode: "fast-path",
-      });
-
-      return this.documentProcessingService.validateAndTruncateContent(
-        fastContext,
-        this.MAX_CONTENT_LENGTH,
-      );
-    }
-
-    const notes =
-      await this.documentProcessingService.processChunksConcurrently(
-        chunks,
-        async (chunk, index, totalChunks) => {
-          const note = await this.groqService.extractStudyNotes(chunk, {
-            index,
-            totalChunks,
-          });
-          return note;
+    this.reportProgress(onProgress, "Analizando el documento", 20);
+    return this.documentProcessingService.buildStudyContext(
+      content,
+      this.groqService,
+      {
+        maxLength: this.MAX_CONTENT_LENGTH,
+        fastPathMinChunks: this.FAST_PATH_MIN_CHUNKS,
+        onProgress: ({ stage, percent }) => {
+          // Map 15–78 range from buildStudyContext into the same range
+          this.reportProgress(onProgress, stage, percent);
         },
-        {
-          concurrency: this.documentProcessingService.MAX_PARALLEL_CHUNKS,
-          onProgress: ({ completed, total }) => {
-            const percent = 20 + Math.round((completed / total) * 45);
-            this.reportProgress(
-              onProgress,
-              `Analizando seccion ${completed} de ${total}`,
-              percent,
-              { completed, total },
-            );
-          },
-        },
-      );
-
-    let combinedSummary =
-      this.documentProcessingService.combineStructuredNotes(notes);
-    console.log(
-      `FlashCardService: notas estructuradas=${combinedSummary.length} caracteres`,
-    );
-
-    this.reportProgress(onProgress, "Consolidando ideas clave", 70);
-
-    if (combinedSummary.length > this.MAX_CONTENT_LENGTH) {
-      combinedSummary = await this.groqService.compressKnowledgeContext(
-        combinedSummary,
-        this.MAX_CONTENT_LENGTH,
-      );
-      console.log(
-        `FlashCardService: notas comprimidas=${combinedSummary.length} caracteres`,
-      );
-    }
-
-    this.reportProgress(onProgress, "Material listo para generar", 78);
-
-    return this.documentProcessingService.validateAndTruncateContent(
-      combinedSummary,
-      this.MAX_CONTENT_LENGTH,
+      },
     );
   }
 }

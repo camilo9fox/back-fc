@@ -334,6 +334,86 @@ class DocumentProcessingService {
 
     return content;
   }
+
+  /**
+   * Universal pipeline: normalize → chunk → summarize/fast-path → compress.
+   * All generation services (flashcards, quizzes, true/false, etc.) should call
+   * this instead of implementing their own truncation logic.
+   *
+   * @param {string} rawContent   - Raw extracted text (may be very large)
+   * @param {object} groqService  - GroqService instance (needed for extractStudyNotes / compressKnowledgeContext)
+   * @param {object} [options]
+   * @param {number} [options.maxLength=4500]        - Final char limit sent to the model
+   * @param {number} [options.fastPathMinChunks=6]   - Min chunks to trigger fast-path
+   * @param {Function} [options.onProgress]          - Optional progress callback ({ stage, percent })
+   * @returns {Promise<string>} Study-ready context, guaranteed ≤ maxLength chars
+   */
+  async buildStudyContext(rawContent, groqService, options = {}) {
+    const { maxLength = 4500, fastPathMinChunks = 6, onProgress } = options;
+
+    const report = (stage, percent) => {
+      if (typeof onProgress === "function") onProgress({ stage, percent });
+    };
+
+    const normalized = this.normalizeText(rawContent);
+    console.log(
+      `DocumentProcessingService.buildStudyContext: entrada=${normalized.length} chars`,
+    );
+
+    // Short document — nothing to do
+    if (normalized.length <= maxLength) {
+      return this.validateAndTruncateContent(normalized, maxLength);
+    }
+
+    report("Analizando el documento", 15);
+    const chunks = this.splitIntoChunks(normalized);
+    console.log(
+      `DocumentProcessingService.buildStudyContext: ${chunks.length} chunks`,
+    );
+
+    // Fast path: document is large enough → sample representative chunks
+    if (chunks.length >= fastPathMinChunks) {
+      report("Modo rápido para documento grande", 35);
+      const fastContext = this.buildFastContext(chunks, maxLength);
+      report("Material listo para generar", 78);
+      return this.validateAndTruncateContent(fastContext, maxLength);
+    }
+
+    // Slow path: extract structured study notes from each chunk in parallel
+    report("Extrayendo ideas clave", 20);
+    const notes = await this.processChunksConcurrently(
+      chunks,
+      async (chunk, index, totalChunks) =>
+        groqService.extractStudyNotes(chunk, { index, totalChunks }),
+      {
+        concurrency: this.MAX_PARALLEL_CHUNKS,
+        onProgress: ({ completed, total }) => {
+          const pct = 20 + Math.round((completed / total) * 45);
+          report(`Analizando sección ${completed} de ${total}`, pct);
+        },
+      },
+    );
+
+    let combined = this.combineStructuredNotes(notes);
+    console.log(
+      `DocumentProcessingService.buildStudyContext: notas combinadas=${combined.length} chars`,
+    );
+
+    report("Consolidando ideas clave", 70);
+
+    if (combined.length > maxLength) {
+      combined = await groqService.compressKnowledgeContext(
+        combined,
+        maxLength,
+      );
+      console.log(
+        `DocumentProcessingService.buildStudyContext: comprimido=${combined.length} chars`,
+      );
+    }
+
+    report("Material listo para generar", 78);
+    return this.validateAndTruncateContent(combined, maxLength);
+  }
 }
 
 module.exports = DocumentProcessingService;

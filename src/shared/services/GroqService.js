@@ -398,14 +398,37 @@ REGLAS OBLIGATORIAS:
       const explanation = String(item.explanation || "").trim();
 
       if (!question || options.length < 2) continue;
-      if (!correctAnswer || !options.includes(correctAnswer)) continue;
+      if (!correctAnswer) continue;
       if (seenQuestions.has(question.toLowerCase())) continue;
+
+      // 1) Coincidencia exacta
+      // 2) Ignorando mayúsculas/espacios
+      // 3) Solo la letra con prefijo en la opción: "C)" / "C." / "C-"
+      // 4) Solo la letra sin prefijo → mapear A→0, B→1, C→2, D→3
+      const normalize = (s) => s.toLowerCase().replace(/\s+/g, " ").trim();
+      const letterPrefix = (letter, opt) =>
+        new RegExp(`^${letter.toUpperCase()}[).\\-]`).test(opt.trimStart());
+      const letterIndex =
+        correctAnswer.length === 1
+          ? "ABCDEFGH".indexOf(correctAnswer.toUpperCase())
+          : -1;
+
+      let resolvedAnswer =
+        options.find((o) => o === correctAnswer) ||
+        options.find((o) => normalize(o) === normalize(correctAnswer)) ||
+        (correctAnswer.length === 1
+          ? options.find((o) => letterPrefix(correctAnswer, o))
+          : null) ||
+        (letterIndex >= 0 && letterIndex < options.length
+          ? options[letterIndex]
+          : null);
+      if (!resolvedAnswer) continue;
 
       seenQuestions.add(question.toLowerCase());
       normalized.push({
         question,
         options,
-        correct_answer: correctAnswer,
+        correct_answer: resolvedAnswer,
         explanation: explanation || undefined,
       });
 
@@ -456,9 +479,14 @@ REGLAS OBLIGATORIAS:
       let batch = [];
       try {
         batch = this.sanitizeQuizQuestions(rawItems, requestQuantity);
-      } catch {
+      } catch (err) {
         console.warn(
           `GroqService: intento ${attempt} sin preguntas quiz válidas, reintentando...`,
+        );
+        console.warn(`GroqService: error sanitize → ${err.message}`);
+        console.warn(
+          `GroqService: rawItems[0] →`,
+          JSON.stringify(rawItems[0], null, 2),
         );
         continue;
       }

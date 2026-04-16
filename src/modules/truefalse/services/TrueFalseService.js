@@ -66,10 +66,10 @@ class TrueFalseService {
       throw new Error("Categoría no encontrada o acceso denegado.");
 
     let content = file ? await this.fileService.extractText(file) : text;
-    content = this.documentProcessingService.normalizeText(content);
-    content = this.documentProcessingService.validateAndTruncateContent(
+    content = await this.documentProcessingService.buildStudyContext(
       content,
-      15000,
+      this.groqService,
+      { maxLength: 9000 },
     );
 
     const rawStatements = await this.groqService.generateTrueFalseStatements(
@@ -77,20 +77,13 @@ class TrueFalseService {
       quantity,
     );
 
-    const questions = rawStatements.map((s, i) => ({
+    // Devuelve las afirmaciones generadas sin persistir — el cliente decide si guardar
+    return rawStatements.map((s, i) => ({
       statement: s.statement,
       is_true: s.is_true,
       explanation: s.explanation || null,
       order_index: i,
     }));
-
-    return this.trueFalseRepository.create({
-      userId,
-      categoryId,
-      title: title.trim(),
-      description: null,
-      questions,
-    });
   }
 
   async getSets(userId, options = {}) {
