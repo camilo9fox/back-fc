@@ -1,4 +1,8 @@
 const { QuizDto, QuizQuestionDto } = require("../dtos/QuizDto");
+const {
+  ValidationError,
+  NotFoundError,
+} = require("../../../shared/errors/AppError");
 
 class QuizService {
   constructor(
@@ -27,7 +31,7 @@ class QuizService {
       questions,
     );
     if (!dto.isValid()) {
-      throw new Error(
+      throw new ValidationError(
         "Invalid quiz data: title, categoryId and at least one valid question are required",
       );
     }
@@ -37,7 +41,7 @@ class QuizService {
       userId,
     );
     if (!category) {
-      throw new Error("Category not found or access denied");
+      throw new NotFoundError("Category not found or access denied");
     }
 
     return this.quizRepository.create({
@@ -51,19 +55,19 @@ class QuizService {
 
   async generateQuiz({ file, text, title, categoryId, quantity, userId }) {
     if (!file && !text?.trim()) {
-      throw new Error(
+      throw new ValidationError(
         "Se requiere un archivo o texto para generar el cuestionario.",
       );
     }
-    if (!title?.trim()) throw new Error("El título es obligatorio.");
-    if (!categoryId) throw new Error("La categoría es obligatoria.");
+    if (!title?.trim()) throw new ValidationError("El título es obligatorio.");
+    if (!categoryId) throw new ValidationError("La categoría es obligatoria.");
 
     const category = await this.categoryService.getCategoryById(
       categoryId,
       userId,
     );
     if (!category)
-      throw new Error("Categoría no encontrada o acceso denegado.");
+      throw new NotFoundError("Categoría no encontrada o acceso denegado.");
 
     let content = file ? await this.fileService.extractText(file) : text;
     content = await this.documentProcessingService.buildStudyContext(
@@ -93,20 +97,21 @@ class QuizService {
 
   async getQuizById(id, userId) {
     const quiz = await this.quizRepository.findById(id, userId);
-    if (!quiz) throw new Error("Quiz not found");
+    if (!quiz) throw new NotFoundError("Quiz not found");
     return quiz;
   }
 
   async updateQuiz(id, userId, updateData) {
     const existing = await this.quizRepository.findById(id, userId);
-    if (!existing) throw new Error("Quiz not found or access denied");
+    if (!existing) throw new NotFoundError("Quiz not found or access denied");
 
     if (updateData.categoryId) {
       const category = await this.categoryService.getCategoryById(
         updateData.categoryId,
         userId,
       );
-      if (!category) throw new Error("Category not found or access denied");
+      if (!category)
+        throw new NotFoundError("Category not found or access denied");
     }
 
     return this.quizRepository.update(id, userId, updateData);
@@ -114,7 +119,7 @@ class QuizService {
 
   async deleteQuiz(id, userId) {
     const existing = await this.quizRepository.findById(id, userId);
-    if (!existing) throw new Error("Quiz not found or access denied");
+    if (!existing) throw new NotFoundError("Quiz not found or access denied");
     return this.quizRepository.delete(id, userId);
   }
 
@@ -127,7 +132,7 @@ class QuizService {
       questionData.orderIndex ?? 0,
     );
     if (!dto.isValid()) {
-      throw new Error(
+      throw new ValidationError(
         "Invalid question data: question, options (≥2) and correctAnswer (in options) are required",
       );
     }

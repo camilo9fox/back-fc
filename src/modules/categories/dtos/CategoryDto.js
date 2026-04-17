@@ -2,6 +2,8 @@
  * Data Transfer Object for Category validation and transformation
  * Ensures data integrity and provides consistent interface
  */
+const { ValidationError } = require("../../../shared/errors/AppError");
+
 class CategoryDto {
   /**
    * Validates and transforms category data for creation
@@ -13,27 +15,29 @@ class CategoryDto {
    */
   static validateCreate(data) {
     if (!data || typeof data !== "object") {
-      throw new Error("Category data is required");
+      throw new ValidationError("Category data is required");
     }
 
     const { title, description, userId } = data;
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
-      throw new Error(
+      throw new ValidationError(
         "Category title is required and must be a non-empty string",
       );
     }
 
     if (title.length > 255) {
-      throw new Error("Category title must be 255 characters or less");
+      throw new ValidationError(
+        "Category title must be 255 characters or less",
+      );
     }
 
     if (!userId || typeof userId !== "string") {
-      throw new Error("User ID is required");
+      throw new ValidationError("User ID is required");
     }
 
     if (description && typeof description !== "string") {
-      throw new Error("Category description must be a string");
+      throw new ValidationError("Category description must be a string");
     }
 
     return {
@@ -52,30 +56,36 @@ class CategoryDto {
    */
   static validateUpdate(data) {
     if (!data || typeof data !== "object") {
-      throw new Error("Update data is required");
+      throw new ValidationError("Update data is required");
     }
 
     const updates = {};
 
     if (data.title !== undefined) {
       if (typeof data.title !== "string" || data.title.trim().length === 0) {
-        throw new Error("Category title must be a non-empty string");
+        throw new ValidationError("Category title must be a non-empty string");
       }
       if (data.title.length > 255) {
-        throw new Error("Category title must be 255 characters or less");
+        throw new ValidationError(
+          "Category title must be 255 characters or less",
+        );
       }
       updates.title = data.title.trim();
     }
 
     if (data.description !== undefined) {
       if (data.description !== null && typeof data.description !== "string") {
-        throw new Error("Category description must be a string or null");
+        throw new ValidationError(
+          "Category description must be a string or null",
+        );
       }
       updates.description = data.description ? data.description.trim() : null;
     }
 
     if (Object.keys(updates).length === 0) {
-      throw new Error("At least one field must be provided for update");
+      throw new ValidationError(
+        "At least one field must be provided for update",
+      );
     }
 
     return updates;

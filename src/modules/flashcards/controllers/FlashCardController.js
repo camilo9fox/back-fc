@@ -1,17 +1,16 @@
+const {
+  AppError,
+  ValidationError,
+} = require("../../../shared/errors/AppError");
+
 /**
  * Controller class for flashcard operations
  * Handles HTTP requests and responses for flashcard generation, creation and retrieval
  */
 class FlashCardController {
-  constructor(
-    flashCardService,
-    manualFlashCardService,
-    flashCardRepository,
-    generationJobService,
-  ) {
+  constructor(flashCardService, manualFlashCardService, generationJobService) {
     this.flashCardService = flashCardService;
     this.manualFlashCardService = manualFlashCardService;
-    this.flashCardRepository = flashCardRepository;
     this.generationJobService = generationJobService;
   }
 
@@ -26,7 +25,7 @@ class FlashCardController {
     const quantity = Number.parseInt(req.body.quantity, 10) || 1;
 
     if (!file && !text) {
-      throw new Error(
+      throw new ValidationError(
         "No se proporcionó ningún archivo ni texto. Envíe al menos una de las opciones.",
       );
     }
@@ -171,17 +170,16 @@ class FlashCardController {
    */
   _handleError(error, res) {
     console.error("Error in FlashCardController:", error);
+    // Groq API payload-too-large (comes as a plain error from groq-sdk)
     if (error.message && error.message.includes("request_too_large")) {
       return res.status(413).json({
         error:
           "La solicitud a la API de Groq es demasiado grande. Intenta con un documento más corto o reduce el contenido.",
       });
     }
-
-    if (error.message && error.message.includes("No se proporcionó")) {
-      return res.status(400).json({ error: error.message });
+    if (error instanceof AppError) {
+      return res.status(error.statusCode).json({ error: error.message });
     }
-
     res
       .status(500)
       .json({ error: error.message || "Error interno del servidor" });
@@ -264,43 +262,8 @@ class FlashCardController {
     }
   }
 
-  async saveFlashCards(req, res) {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-
-      const { flashcards, categoryId } = req.body;
-
-      if (
-        !flashcards ||
-        !Array.isArray(flashcards) ||
-        flashcards.length === 0
-      ) {
-        return res.status(400).json({
-          error:
-            "Se requiere un array 'flashcards' con al menos una flashcard.",
-        });
-      }
-
-      const createdFlashCards =
-        await this.manualFlashCardService.createFlashCards(
-          flashcards,
-          userId,
-          categoryId,
-        );
-
-      res.status(201).json({
-        message: `${createdFlashCards.length} flashcards guardadas exitosamente`,
-        flashcards: createdFlashCards,
-      });
-    } catch (error) {
-      this._handleError(error, res);
-    }
-  }
   /**
-   * Retrieves all flashcards with optional filtering
+   * Deletes a flashcard by ID
    * @param {Object} req - Express request object
    * @param {Object} res - Express response object
    */
@@ -311,11 +274,13 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
       const { id } = req.params;
-      const existing = await this.flashCardRepository.findById(id, userId);
-      if (!existing) {
+      const deleted = await this.manualFlashCardService.deleteFlashCard(
+        id,
+        userId,
+      );
+      if (!deleted) {
         return res.status(404).json({ error: "Flashcard not found" });
       }
-      await this.flashCardRepository.delete(id);
       res.status(200).json({ success: true });
     } catch (error) {
       this._handleError(error, res);
@@ -343,7 +308,10 @@ class FlashCardController {
       filters.limit = Math.min(parseInt(limit) || 10, 100); // Max 100 per request
       filters.offset = parseInt(offset) || 0;
 
-      const flashcards = await this.flashCardRepository.findAll(filters);
+      const flashcards = await this.manualFlashCardService.getFlashCards(
+        userId,
+        filters,
+      );
 
       res.json({
         flashcards,
@@ -377,7 +345,10 @@ class FlashCardController {
         });
       }
 
-      const flashcard = await this.flashCardRepository.findById(id, userId);
+      const flashcard = await this.manualFlashCardService.getFlashCardById(
+        id,
+        userId,
+      );
 
       if (!flashcard) {
         return res.status(404).json({

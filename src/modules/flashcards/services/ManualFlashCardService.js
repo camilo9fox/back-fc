@@ -1,4 +1,5 @@
 const FlashCardDto = require("../dtos/FlashCardDto");
+const { ValidationError } = require("../../../shared/errors/AppError");
 
 /**
  * Service class for manual flashcard creation
@@ -23,7 +24,7 @@ class ManualFlashCardService {
    */
   async createFlashCard({ question, answer }, userId, categoryId = null) {
     if (!userId) {
-      throw new Error("User ID is required to create flashcard");
+      throw new ValidationError("User ID is required to create flashcard");
     }
 
     // If no categoryId provided, get the default "General" category
@@ -48,19 +49,14 @@ class ManualFlashCardService {
     });
 
     // Save to database
-    try {
-      const savedFlashCard = await this.flashCardRepository.create({
-        ...validatedFlashCard,
-        source: "manual",
-        userId,
-        categoryId: finalCategoryId,
-      });
+    const savedFlashCard = await this.flashCardRepository.create({
+      ...validatedFlashCard,
+      source: "manual",
+      userId,
+      categoryId: finalCategoryId,
+    });
 
-      return savedFlashCard;
-    } catch (error) {
-      console.error("Error saving flashcard to database:", error);
-      throw new Error("Error al guardar la flashcard en la base de datos");
-    }
+    return savedFlashCard;
   }
 
   /**
@@ -72,15 +68,15 @@ class ManualFlashCardService {
    */
   async createFlashCards(flashCardsData, userId, categoryId = null) {
     if (!userId) {
-      throw new Error("User ID is required to create flashcards");
+      throw new ValidationError("User ID is required to create flashcards");
     }
 
     if (!Array.isArray(flashCardsData) || flashCardsData.length === 0) {
-      throw new Error("Debe proporcionar al menos una flashcard.");
+      throw new ValidationError("Debe proporcionar al menos una flashcard.");
     }
 
     if (flashCardsData.length > 20) {
-      throw new Error(
+      throw new ValidationError(
         "No se pueden crear más de 20 flashcards manuales a la vez.",
       );
     }
@@ -99,22 +95,63 @@ class ManualFlashCardService {
           categoryId: cardCategoryId,
         });
       } catch (error) {
-        throw new Error(`Error en la flashcard ${i + 1}: ${error.message}`);
+        throw new ValidationError(
+          `Error en la flashcard ${i + 1}: ${error.message}`,
+        );
       }
     }
 
     // Save all to database
-    try {
-      const savedFlashCards = await this.flashCardRepository.createMany(
-        validatedFlashCards,
-        userId,
-        categoryId,
-      );
-      return savedFlashCards;
-    } catch (error) {
-      console.error("Error saving flashcards to database:", error);
-      throw new Error("Error al guardar las flashcards en la base de datos");
+    const savedFlashCards = await this.flashCardRepository.createMany(
+      validatedFlashCards,
+      userId,
+      categoryId,
+    );
+    return savedFlashCards;
+  }
+
+  /**
+   * Deletes a flashcard by ID, scoped to the authenticated user
+   * @param {string} id - Flashcard ID
+   * @param {string} userId - User ID
+   * @returns {Promise<boolean>} True if deleted, false if not found
+   */
+  async deleteFlashCard(id, userId) {
+    if (!userId) {
+      throw new ValidationError("User ID is required to delete a flashcard");
     }
+    const existing = await this.flashCardRepository.findById(id, userId);
+    if (!existing) {
+      return false;
+    }
+    await this.flashCardRepository.delete(id);
+    return true;
+  }
+
+  /**
+   * Gets all flashcards for a user with optional filters
+   * @param {string} userId - User ID
+   * @param {Object} filters - Query filters (categoryId, limit, offset)
+   * @returns {Promise<Array<Object>>} Array of flashcards
+   */
+  async getFlashCards(userId, filters = {}) {
+    if (!userId) {
+      throw new ValidationError("User ID is required to retrieve flashcards");
+    }
+    return this.flashCardRepository.findAll({ userId, ...filters });
+  }
+
+  /**
+   * Gets a single flashcard by ID, scoped to the authenticated user
+   * @param {string} id - Flashcard ID
+   * @param {string} userId - User ID
+   * @returns {Promise<Object|null>} Flashcard or null if not found
+   */
+  async getFlashCardById(id, userId) {
+    if (!userId) {
+      throw new ValidationError("User ID is required to retrieve a flashcard");
+    }
+    return this.flashCardRepository.findById(id, userId);
   }
 
   /**
@@ -129,11 +166,15 @@ class ManualFlashCardService {
       typeof question !== "string" ||
       question.trim().length === 0
     ) {
-      throw new Error("La pregunta es requerida y debe ser un texto válido.");
+      throw new ValidationError(
+        "La pregunta es requerida y debe ser un texto válido.",
+      );
     }
 
     if (!answer || typeof answer !== "string" || answer.trim().length === 0) {
-      throw new Error("La respuesta es requerida y debe ser un texto válido.");
+      throw new ValidationError(
+        "La respuesta es requerida y debe ser un texto válido.",
+      );
     }
 
     return {

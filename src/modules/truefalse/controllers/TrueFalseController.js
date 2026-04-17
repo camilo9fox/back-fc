@@ -1,3 +1,5 @@
+const { AppError } = require("../../../shared/errors/AppError");
+
 class TrueFalseController {
   constructor(trueFalseService) {
     this.trueFalseService = trueFalseService;
@@ -138,19 +140,8 @@ class TrueFalseController {
 
   _handleError(error, res) {
     console.error("TrueFalseController error:", error.message);
-    if (
-      error.message.includes("not found") ||
-      error.message.includes("access denied")
-    ) {
-      return res.status(404).json({ error: error.message });
-    }
-    if (
-      error.message.includes("Invalid") ||
-      error.message.includes("required") ||
-      error.message.includes("obligatorio") ||
-      error.message.includes("Se requiere")
-    ) {
-      return res.status(400).json({ error: error.message });
+    if (error instanceof AppError) {
+      return res.status(error.statusCode).json({ error: error.message });
     }
     res.status(500).json({ error: "Internal server error" });
   }

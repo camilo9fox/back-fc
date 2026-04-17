@@ -1,4 +1,5 @@
 const CategoryDto = require("../dtos/CategoryDto");
+const { NotFoundError } = require("../../../shared/errors/AppError");
 
 /**
  * Service class for category business logic
@@ -97,7 +98,7 @@ class CategoryService {
     });
 
     if (categories.length === 0) {
-      throw new Error("Default 'General' category not found for user");
+      throw new NotFoundError("Default 'General' category not found for user");
     }
 
     return CategoryDto.toResponse(categories[0]);

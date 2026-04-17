@@ -1,4 +1,5 @@
 const CategoryDto = require("../dtos/CategoryDto");
+const { AppError } = require("../../../shared/errors/AppError");
 
 /**
  * Controller class for category operations
@@ -156,15 +157,9 @@ class CategoryController {
    */
   _handleError(error, res) {
     console.error("Error in CategoryController:", error);
-
-    if (error.message && error.message.includes("required")) {
-      return res.status(400).json({ error: error.message });
+    if (error instanceof AppError) {
+      return res.status(error.statusCode).json({ error: error.message });
     }
-
-    if (error.message && error.message.includes("not found")) {
-      return res.status(404).json({ error: error.message });
-    }
-
     res
       .status(500)
       .json({ error: error.message || "Error interno del servidor" });

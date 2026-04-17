@@ -1,4 +1,5 @@
 const AuthService = require("../services/AuthService");
+const { AppError, ConflictError } = require("../../../shared/errors/AppError");
 
 /**
  * Controller for authentication HTTP requests
@@ -37,26 +38,16 @@ class AuthController {
       });
     } catch (error) {
       console.error("AuthController.signUp error:", error);
-
-      // Handle specific error types
-      if (error.message.includes("already registered")) {
-        return res.status(409).json({
-          error: "User already exists with this email",
-        });
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
       }
-
-      if (
-        error.message.includes("Invalid email") ||
-        error.message.includes("Password")
-      ) {
-        return res.status(400).json({
-          error: error.message,
-        });
+      // Supabase returns plain errors for duplicate email
+      if (error.message && error.message.includes("already registered")) {
+        return res
+          .status(409)
+          .json({ error: "User already exists with this email" });
       }
-
-      res.status(500).json({
-        error: "Internal server error",
-      });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -87,23 +78,22 @@ class AuthController {
       });
     } catch (error) {
       console.error("AuthController.signIn error:", error);
-
-      // Handle specific error types
-      if (error.message.includes("Invalid login credentials")) {
-        return res.status(401).json({
-          error: "Invalid email or password",
-        });
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
       }
-
-      if (error.message.includes("Email not confirmed")) {
-        return res.status(401).json({
-          error: "Please confirm your email before signing in",
-        });
+      // Supabase errors for invalid credentials/unconfirmed email
+      if (
+        error.message &&
+        error.message.includes("Invalid login credentials")
+      ) {
+        return res.status(401).json({ error: "Invalid email or password" });
       }
-
-      res.status(500).json({
-        error: "Internal server error",
-      });
+      if (error.message && error.message.includes("Email not confirmed")) {
+        return res
+          .status(401)
+          .json({ error: "Please confirm your email before signing in" });
+      }
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -127,16 +117,10 @@ class AuthController {
       });
     } catch (error) {
       console.error("AuthController.signInWithOAuth error:", error);
-
-      if (error.message.includes("Unsupported OAuth provider")) {
-        return res.status(400).json({
-          error: error.message,
-        });
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
       }
-
-      res.status(500).json({
-        error: "Internal server error",
-      });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -248,16 +232,10 @@ class AuthController {
       });
     } catch (error) {
       console.error("AuthController.resetPassword error:", error);
-
-      if (error.message.includes("Invalid email")) {
-        return res.status(400).json({
-          error: error.message,
-        });
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
       }
-
-      res.status(500).json({
-        error: "Internal server error",
-      });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -293,16 +271,10 @@ class AuthController {
       });
     } catch (error) {
       console.error("AuthController.updatePassword error:", error);
-
-      if (error.message.includes("Password must")) {
-        return res.status(400).json({
-          error: error.message,
-        });
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
       }
-
-      res.status(500).json({
-        error: "Internal server error",
-      });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 }

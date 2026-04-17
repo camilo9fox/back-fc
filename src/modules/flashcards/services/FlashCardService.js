@@ -1,5 +1,6 @@
 const FlashCardDto = require("../dtos/FlashCardDto");
 const config = require("../../../shared/config/config");
+const { ValidationError } = require("../../../shared/errors/AppError");
 
 /**
  * Service class for flashcard orchestration
@@ -43,14 +44,14 @@ class FlashCardService {
    */
   async processInput({ file, text, quantity = 1, userId, onProgress }) {
     if (!userId) {
-      throw new Error("User ID is required to generate flashcards");
+      throw new ValidationError("User ID is required to generate flashcards");
     }
 
     if (
       quantity < config.limits.minFlashCards ||
       quantity > config.limits.maxFlashCards
     ) {
-      throw new Error(
+      throw new ValidationError(
         `La cantidad debe estar entre ${config.limits.minFlashCards} y ${config.limits.maxFlashCards} flashcards`,
       );
     }
@@ -76,7 +77,7 @@ class FlashCardService {
     }
 
     if (!documentContent.trim()) {
-      throw new Error("El contenido del documento está vacío.");
+      throw new ValidationError("El contenido del documento está vacío.");
     }
 
     documentContent =
@@ -112,12 +113,10 @@ class FlashCardService {
     const truncatedFlashCardDataArray = flashCardDataArray.slice(0, quantity);
 
     if (truncatedFlashCardDataArray.length < quantity) {
-      throw new Error(
+      throw new ValidationError(
         `La generación devolvió ${truncatedFlashCardDataArray.length}/${quantity} flashcards. Intenta nuevamente.`,
       );
     }
-
-    console.log({ flashCardDataArray: truncatedFlashCardDataArray });
 
     // Get default category for the user
     let defaultCategoryId = null;
@@ -142,7 +141,9 @@ class FlashCardService {
       );
 
       if (!flashCardDto.isValid()) {
-        throw new Error(`Datos de flashcard inválidos generados por IA`);
+        throw new ValidationError(
+          `Datos de flashcard inválidos generados por IA`,
+        );
       }
 
       flashCards.push({

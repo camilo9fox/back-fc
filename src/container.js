@@ -47,6 +47,21 @@ class Container {
       return new GroqService(config.groqApiKey);
     });
 
+    container.register("flashcardGenerationService", () => {
+      const FlashcardGenerationService = require("./shared/services/FlashcardGenerationService");
+      return new FlashcardGenerationService(config.groqApiKey);
+    });
+
+    container.register("quizGenerationService", () => {
+      const QuizGenerationService = require("./shared/services/QuizGenerationService");
+      return new QuizGenerationService(config.groqApiKey);
+    });
+
+    container.register("trueFalseGenerationService", () => {
+      const TrueFalseGenerationService = require("./shared/services/TrueFalseGenerationService");
+      return new TrueFalseGenerationService(config.groqApiKey);
+    });
+
     container.register("fileService", () => {
       const FileService = require("./shared/services/FileService");
       return new FileService();
@@ -65,7 +80,7 @@ class Container {
     container.register("flashCardService", (c) => {
       const FlashCardService = require("./modules/flashcards/services/FlashCardService");
       return new FlashCardService(
-        c.get("groqService"),
+        c.get("flashcardGenerationService"),
         c.get("fileService"),
         c.get("documentProcessingService"),
         c.get("flashCardRepository"),
@@ -111,7 +126,6 @@ class Container {
       return new FlashCardController(
         c.get("flashCardService"),
         c.get("manualFlashCardService"),
-        c.get("flashCardRepository"),
         c.get("generationJobService"),
       );
     });
@@ -153,7 +167,7 @@ class Container {
       return new QuizService(
         c.get("quizRepository"),
         c.get("categoryService"),
-        c.get("groqService"),
+        c.get("quizGenerationService"),
         c.get("fileService"),
         c.get("documentProcessingService"),
       );
@@ -180,7 +194,7 @@ class Container {
       return new TrueFalseService(
         c.get("trueFalseRepository"),
         c.get("categoryService"),
-        c.get("groqService"),
+        c.get("trueFalseGenerationService"),
         c.get("fileService"),
         c.get("documentProcessingService"),
       );

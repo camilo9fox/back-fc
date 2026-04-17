@@ -1,8 +1,11 @@
 const { createClient } = require("@supabase/supabase-js");
 const config = require("../../../../shared/config/config");
+const ITrueFalseRepository = require("../interfaces/ITrueFalseRepository");
+const { NotFoundError } = require("../../../../shared/errors/AppError");
 
-class SupabaseTrueFalseRepository {
+class SupabaseTrueFalseRepository extends ITrueFalseRepository {
   constructor() {
+    super();
     this.supabase = createClient(
       config.supabase.url,
       config.supabase.serviceRoleKey,
@@ -154,7 +157,8 @@ class SupabaseTrueFalseRepository {
   async addQuestion(setId, userId, questionData) {
     try {
       const set = await this.findById(setId, userId);
-      if (!set) throw new Error("True/false set not found or access denied");
+      if (!set)
+        throw new NotFoundError("True/false set not found or access denied");
 
       const { count } = await this.supabase
         .from("true_false_questions")
@@ -193,7 +197,7 @@ class SupabaseTrueFalseRepository {
         .single();
 
       if (fetchError || !question)
-        throw new Error("Question not found or access denied");
+        throw new NotFoundError("Question not found or access denied");
 
       const { error } = await this.supabase
         .from("true_false_questions")

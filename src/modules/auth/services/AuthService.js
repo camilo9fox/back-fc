@@ -1,5 +1,10 @@
 const jwt = require("jsonwebtoken");
 const config = require("../../../shared/config/config");
+const {
+  ValidationError,
+  ConflictError,
+  NotFoundError,
+} = require("../../../shared/errors/AppError");
 
 /**
  * Service for authentication business logic
@@ -35,10 +40,11 @@ class AuthService {
 
       // Create default "General" category for the new user
       try {
-        await this.categoryService.createCategory(result.user.id, {
+        await this.categoryService.createCategory({
           title: "General",
           description:
             "Categoría por defecto para flashcards sin categoría asignada",
+          userId: result.user.id,
         });
       } catch (categoryError) {
         console.warn(
@@ -72,7 +78,7 @@ class AuthService {
       // Validate input
       this._validateEmail(email);
       if (!password) {
-        throw new Error("Password is required");
+        throw new ValidationError("Password is required");
       }
 
       // Sign in with Supabase
@@ -102,7 +108,7 @@ class AuthService {
       // Validate provider
       const validProviders = ["google", "github", "discord"];
       if (!validProviders.includes(provider.toLowerCase())) {
-        throw new Error(`Unsupported OAuth provider: ${provider}`);
+        throw new ValidationError(`Unsupported OAuth provider: ${provider}`);
       }
 
       return await this.authRepository.signInWithOAuth(
@@ -123,7 +129,7 @@ class AuthService {
   async signOut(userId) {
     try {
       if (!userId) {
-        throw new Error("User ID is required");
+        throw new ValidationError("User ID is required");
       }
 
       return await this.authRepository.signOut(userId);
@@ -141,7 +147,7 @@ class AuthService {
   async getUserById(userId) {
     try {
       if (!userId) {
-        throw new Error("User ID is required");
+        throw new ValidationError("User ID is required");
       }
 
       return await this.authRepository.getUserById(userId);
@@ -177,7 +183,7 @@ class AuthService {
   async updatePassword(userId, currentPassword, newPassword) {
     try {
       if (!userId) {
-        throw new Error("User ID is required");
+        throw new ValidationError("User ID is required");
       }
 
       this._validatePassword(newPassword);
@@ -185,7 +191,7 @@ class AuthService {
       // Verify current password by attempting sign in
       const user = await this.getUserById(userId);
       if (!user) {
-        throw new Error("User not found");
+        throw new NotFoundError("User not found");
       }
 
       // For now, we'll just update the password directly
@@ -250,7 +256,7 @@ class AuthService {
   _validateEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email || !emailRegex.test(email)) {
-      throw new Error("Invalid email format");
+      throw new ValidationError("Invalid email format");
     }
   }
 
@@ -260,7 +266,7 @@ class AuthService {
    */
   _validatePassword(password) {
     if (!password || password.length < 8) {
-      throw new Error("Password must be at least 8 characters long");
+      throw new ValidationError("Password must be at least 8 characters long");
     }
 
     // Check for at least one uppercase, one lowercase, and one number
@@ -269,7 +275,7 @@ class AuthService {
     const hasNumbers = /\d/.test(password);
 
     if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
-      throw new Error(
+      throw new ValidationError(
         "Password must contain at least one uppercase letter, one lowercase letter, and one number",
       );
     }

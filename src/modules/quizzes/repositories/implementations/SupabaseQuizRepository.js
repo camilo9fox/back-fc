@@ -1,8 +1,11 @@
 const { createClient } = require("@supabase/supabase-js");
 const config = require("../../../../shared/config/config");
+const IQuizRepository = require("../interfaces/IQuizRepository");
+const { NotFoundError } = require("../../../../shared/errors/AppError");
 
-class SupabaseQuizRepository {
+class SupabaseQuizRepository extends IQuizRepository {
   constructor() {
+    super();
     this.supabase = createClient(
       config.supabase.url,
       config.supabase.serviceRoleKey,
@@ -146,7 +149,7 @@ class SupabaseQuizRepository {
     try {
       // Verify ownership
       const quiz = await this.findById(quizId, userId);
-      if (!quiz) throw new Error("Quiz not found or access denied");
+      if (!quiz) throw new NotFoundError("Quiz not found or access denied");
 
       const { count } = await this.supabase
         .from("quiz_questions")
@@ -187,7 +190,7 @@ class SupabaseQuizRepository {
         .single();
 
       if (fetchError || !question)
-        throw new Error("Question not found or access denied");
+        throw new NotFoundError("Question not found or access denied");
 
       const { error } = await this.supabase
         .from("quiz_questions")

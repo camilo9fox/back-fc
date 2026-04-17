@@ -1,6 +1,8 @@
 /**
  * Data Transfer Object for FlashCard (classic Q/A format)
  */
+const { ValidationError } = require("../../../shared/errors/AppError");
+
 class FlashCardDto {
   constructor(question, answer) {
     this.question = question;
@@ -21,7 +23,7 @@ class FlashCardDto {
       const data = JSON.parse(jsonString);
       return new FlashCardDto(data.question, data.answer);
     } catch (error) {
-      throw new Error("Invalid JSON format for FlashCard");
+      throw new ValidationError("Invalid JSON format for FlashCard");
     }
   }
 }
