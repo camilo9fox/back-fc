@@ -6,9 +6,11 @@ const config = require("../config/config");
  * Handles file validation and text extraction
  */
 class FileService {
-  constructor() {
+  constructor(pdfRendererService = null, ocrService = null) {
     this.MAX_FILE_SIZE = config.limits.fileSizeLimit;
     this.SUPPORTED_TYPES = config.limits.allowedFileTypes;
+    this.pdfRendererService = pdfRendererService;
+    this.ocrService = ocrService;
   }
 
   /**
@@ -65,13 +67,30 @@ class FileService {
       `PDF extraction: pages=${data.numpages}, textLength=${extractedText.length}`,
     );
 
-    if (!extractedText) {
+    if (extractedText) {
+      return extractedText;
+    }
+
+    // Scanned / image-based PDF — delegate to Tesseract OCR
+    if (!this.pdfRendererService || !this.ocrService) {
       throw new Error(
         "No se pudo extraer texto del PDF. Asegúrate de que no sea un PDF escaneado o basado en imágenes.",
       );
     }
 
-    return extractedText;
+    console.log("PDF has no selectable text — using OCR...");
+    const { pageCount } = await this.pdfRendererService.analyzeDocument(buffer);
+    const images = await this.pdfRendererService.renderPages(buffer, pageCount);
+    const ocrText = await this.ocrService.extractTextFromImages(images);
+
+    if (!ocrText) {
+      throw new Error(
+        "No se pudo extraer texto del PDF, ni siquiera con OCR. Verifica que el archivo sea legible.",
+      );
+    }
+
+    console.log(`OCR completado: ${ocrText.length} caracteres extraídos.`);
+    return ocrText;
   }
 
   /**

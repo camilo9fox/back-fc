@@ -20,7 +20,7 @@ REGLAS OBLIGATORIAS:
 1. Devuelve SOLO un objeto JSON valido con la forma {"questions": [...] }.
 2. Cada pregunta debe tener exactamente 4 opciones distintas, claras y plausibles.
 3. La respuesta correcta (correct_answer) DEBE ser una de las 4 opciones exactamente como aparece en el array options.
-4. Incluye una breve explicacion (explanation) de por que la respuesta es correcta.
+4. Incluye una explicacion (explanation) MUY BREVE: MÁXIMO 20 palabras.
 5. Las preguntas deben evaluar comprension conceptual: definiciones, causas, efectos, comparaciones, procesos.
 6. No inventes informacion que no se deduzca claramente del material.
 7. Evita preguntas triviales, repetidas o ambiguas.
@@ -104,14 +104,14 @@ REGLAS OBLIGATORIAS:
       attempt += 1
     ) {
       const remaining = quantity - collected.length;
-      const requestQuantity = Math.min(remaining + 2, 10);
+      const requestQuantity = Math.min(remaining + 2, 5);
 
       const response = await this.createChatCompletion({
         messages: this.buildQuizGenerationMessages(content, requestQuantity),
         preferredModel: this.qualityModel,
         fallbackModel: this.fastModel,
         temperature: attempt === 1 ? 0.55 : 0.7,
-        max_completion_tokens: 2500,
+        max_completion_tokens: 8192,
         frequency_penalty: 0.3,
         responseFormat: { type: "json_object" },
         stream: false,

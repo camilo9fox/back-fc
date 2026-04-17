@@ -42,7 +42,7 @@ class FlashcardGenerationService extends GroqService {
 REGLAS OBLIGATORIAS:
 1. Devuelve SOLO un objeto JSON valido con la forma {"flashcards": [...] }.
 2. Cada question debe estar muy bien redactada, ser precisa, autoexplicativa y sonar natural.
-3. Cada answer debe ser breve pero completa, una o dos oraciones maximo.
+3. Cada answer debe ser directa y concisa: MÁXIMO 25 palabras. Sin explicaciones largas.
 4. Evita preguntas repetidas, triviales o ambiguas.
 5. Prioriza definiciones, relaciones causa-efecto, comparaciones, procesos, ejemplos y aplicaciones.
 6. No inventes informacion que no aparezca o no se deduzca claramente del material.
@@ -107,7 +107,7 @@ REGLAS OBLIGATORIAS:
       attempt += 1
     ) {
       const remaining = quantity - collected.length;
-      const requestQuantity = Math.min(remaining + 2, 10);
+      const requestQuantity = Math.min(remaining + 2, 5);
       const excluded = Array.from(seenQuestions);
 
       const response = await this.createChatCompletion({
@@ -119,7 +119,7 @@ REGLAS OBLIGATORIAS:
         preferredModel: this.qualityModel,
         fallbackModel: this.fastModel,
         temperature: attempt === 1 ? 0.55 : 0.7,
-        max_completion_tokens: 2200,
+        max_completion_tokens: 8192,
         frequency_penalty: 0.4,
         presence_penalty: 0.25,
         responseFormat: { type: "json_object" },

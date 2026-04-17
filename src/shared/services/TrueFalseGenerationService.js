@@ -20,7 +20,7 @@ REGLAS OBLIGATORIAS:
 1. Devuelve SOLO un objeto JSON valido con la forma {"questions": [...] }.
 2. Cada afirmacion (statement) debe ser clara, concisa y no ambigua.
 3. El campo is_true debe ser un booleano (true o false), nunca un string.
-4. Incluye una breve explicacion (explanation) de por que es verdadera o falsa.
+4. Incluye una explicacion (explanation) MUY BREVE: MÁXIMO 20 palabras.
 5. Equilibra la cantidad de afirmaciones verdaderas y falsas.
 6. Basa las afirmaciones solo en el contenido del material proporcionado.
 7. Evita afirmaciones triviales u obviamente verdaderas/falsas sin contexto.
@@ -81,7 +81,7 @@ REGLAS OBLIGATORIAS:
       attempt += 1
     ) {
       const remaining = quantity - collected.length;
-      const requestQuantity = Math.min(remaining + 2, 15);
+      const requestQuantity = Math.min(remaining + 2, 5);
 
       const response = await this.createChatCompletion({
         messages: this.buildTrueFalseGenerationMessages(
@@ -91,7 +91,7 @@ REGLAS OBLIGATORIAS:
         preferredModel: this.qualityModel,
         fallbackModel: this.fastModel,
         temperature: attempt === 1 ? 0.55 : 0.7,
-        max_completion_tokens: 2500,
+        max_completion_tokens: 8192,
         frequency_penalty: 0.3,
         responseFormat: { type: "json_object" },
         stream: false,

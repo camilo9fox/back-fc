@@ -62,9 +62,19 @@ class Container {
       return new TrueFalseGenerationService(config.groqApiKey);
     });
 
-    container.register("fileService", () => {
+    container.register("pdfRendererService", () => {
+      const PdfRendererService = require("./shared/services/PdfRendererService");
+      return new PdfRendererService();
+    });
+
+    container.register("ocrService", () => {
+      const OcrService = require("./shared/services/OcrService");
+      return new OcrService();
+    });
+
+    container.register("fileService", (c) => {
       const FileService = require("./shared/services/FileService");
-      return new FileService();
+      return new FileService(c.get("pdfRendererService"), c.get("ocrService"));
     });
 
     container.register("documentProcessingService", () => {
