@@ -18,6 +18,7 @@ function createApp() {
   const categoryRoutes = container.get("categoryRoutes");
   const quizRoutes = container.get("quizRoutes");
   const trueFalseRoutes = container.get("trueFalseRoutes");
+  const studyGuideRoutes = container.get("studyGuideRoutes");
 
   app.use(cors(config.corsOptions));
   app.use(express.json({ limit: "10mb" }));
@@ -27,6 +28,7 @@ function createApp() {
   app.use("/api/categories", categoryRoutes);
   app.use("/api/quizzes", quizRoutes);
   app.use("/api/true-false", trueFalseRoutes);
+  app.use("/api/study-guides", studyGuideRoutes);
 
   app.use((error, req, res, next) => {
     if (error && error.code === "LIMIT_FILE_SIZE") {

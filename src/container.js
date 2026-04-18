@@ -226,6 +226,41 @@ class Container {
       return createTrueFalseRouter(c.get("trueFalseController"));
     });
 
+    // Study Guide services
+    container.register("studyGuideGenerationService", () => {
+      const StudyGuideGenerationService = require("./shared/services/StudyGuideGenerationService");
+      return new StudyGuideGenerationService(config.groqApiKey);
+    });
+
+    container.register("studyGuideRepository", () => {
+      const SupabaseStudyGuideRepository = require("./modules/studyguides/repositories/implementations/SupabaseStudyGuideRepository");
+      return new SupabaseStudyGuideRepository();
+    });
+
+    container.register("studyGuideService", (c) => {
+      const StudyGuideService = require("./modules/studyguides/services/StudyGuideService");
+      return new StudyGuideService(
+        c.get("studyGuideRepository"),
+        c.get("categoryService"),
+        c.get("studyGuideGenerationService"),
+        c.get("fileService"),
+        c.get("documentProcessingService"),
+      );
+    });
+
+    container.register("studyGuideController", (c) => {
+      const StudyGuideController = require("./modules/studyguides/controllers/StudyGuideController");
+      return new StudyGuideController(
+        c.get("studyGuideService"),
+        c.get("generationJobService"),
+      );
+    });
+
+    container.register("studyGuideRoutes", (c) => {
+      const createStudyGuideRouter = require("./modules/studyguides/routes/studyGuideRoutes");
+      return createStudyGuideRouter(c.get("studyGuideController"));
+    });
+
     return container;
   }
 }

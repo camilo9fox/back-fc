@@ -15,6 +15,7 @@
 DROP TABLE IF EXISTS true_false_questions CASCADE;
 DROP TABLE IF EXISTS quiz_questions       CASCADE;
 DROP TABLE IF EXISTS flashcards           CASCADE;
+DROP TABLE IF EXISTS study_guides         CASCADE;
 
 -- Parent tables
 DROP TABLE IF EXISTS true_false_sets CASCADE;
@@ -250,4 +251,32 @@ ALTER TABLE flashcards ALTER COLUMN category_id SET NOT NULL;
 ALTER TABLE flashcards DROP CONSTRAINT IF EXISTS flashcards_category_id_fkey;
 ALTER TABLE flashcards ADD CONSTRAINT flashcards_category_id_fkey
   FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE;
+
+-- ────────────────────────────────────────────
+-- STUDY GUIDES
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS study_guides (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  title       VARCHAR(255) NOT NULL,
+  content     TEXT NOT NULL,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_study_guides_user_id     ON study_guides(user_id);
+CREATE INDEX IF NOT EXISTS idx_study_guides_category_id ON study_guides(category_id);
+CREATE INDEX IF NOT EXISTS idx_study_guides_created_at  ON study_guides(created_at DESC);
+
+CREATE TRIGGER update_study_guides_updated_at
+    BEFORE UPDATE ON study_guides
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE study_guides ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own study guides"   ON study_guides FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own study guides" ON study_guides FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own study guides" ON study_guides FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own study guides" ON study_guides FOR DELETE USING (auth.uid() = user_id);
 -- =============================================================
