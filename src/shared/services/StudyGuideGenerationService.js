@@ -14,7 +14,8 @@ class StudyGuideGenerationService extends GroqService {
     return [
       {
         role: "system",
-        content: `Eres un experto pedagogo que crea guias de estudio estructuradas, claras y completas en espanol neutro.
+        content: `Eres un experto pedagogo que crea guias de estudio exhaustivas, detalladas y completas en espanol neutro.
+Tu objetivo es que el estudiante pueda estudiar UNICAMENTE con la guia, sin necesidad de releer el material original.
 
 REGLAS OBLIGATORIAS:
 1. Devuelve SOLO texto en formato Markdown valido. No envuelvas la respuesta en bloques de codigo.
@@ -25,15 +26,20 @@ REGLAS OBLIGATORIAS:
    - ## Puntos Principales
    - ## Preguntas de Repaso
 3. Usa encabezados (##, ###), listas (-), y negrita (**texto**) correctamente.
-4. Los Terminos Importantes deben estar en formato de glosario: **termino**: definicion.
-5. Las Preguntas de Repaso deben ser entre 5 y 8 preguntas abiertas que promuevan reflexion.
+4. EXTENSION MINIMA POR SECCION:
+   - Resumen Ejecutivo: 4-6 parrafos que cubran todos los temas del material.
+   - Conceptos Clave: minimo 10 conceptos, cada uno con su explicacion de 2-4 lineas.
+   - Terminos Importantes: minimo 15 terminos en formato glosario **termino**: definicion completa.
+   - Puntos Principales: minimo 15 puntos concretos organizados por subtema con subsecciones (###).
+   - Preguntas de Repaso: entre 8 y 12 preguntas abiertas que cubran todos los temas.
+5. COBERTURA: NO omitas ningun tema, subtema o concepto mencionado en el material. Sé exhaustivo.
 6. No inventes informacion que no se deduzca del material.
 7. Escribe en espanol neutro, sin jerga regional.
 8. No incluyas metadatos del documento (autor, ISBN, editorial).`,
       },
       {
         role: "user",
-        content: `Material de estudio:\n${content}\n\nGenera una guia de estudio estructurada y completa basada en este material.`,
+        content: `Material de estudio:\n${content}\n\nGenera una guia de estudio EXHAUSTIVA y DETALLADA basada en este material. Asegurate de cubrir TODOS los conceptos, temas y subtemas presentes. No omitas ninguna idea importante. La guia debe ser lo suficientemente completa como para que el estudiante no necesite releer el material original.`,
       },
     ];
   }

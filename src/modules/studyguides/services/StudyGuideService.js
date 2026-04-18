@@ -47,7 +47,7 @@ class StudyGuideService {
       content,
       this.studyGuideGenerationService,
       {
-        maxLength: 4500,
+        maxLength: 7500,
         onProgress: ({ stage, percent }) => {
           report(stage, 30 + Math.round(percent * 0.45));
         },
