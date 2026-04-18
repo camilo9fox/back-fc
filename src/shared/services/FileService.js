@@ -80,8 +80,12 @@ class FileService {
 
     console.log("PDF has no selectable text — using OCR...");
     const { pageCount } = await this.pdfRendererService.analyzeDocument(buffer);
-    const images = await this.pdfRendererService.renderPages(buffer, pageCount);
-    const ocrText = await this.ocrService.extractTextFromImages(images);
+    const { pageCount: pages, renderPage } =
+      await this.pdfRendererService.createPageRenderer(buffer, pageCount);
+    const ocrText = await this.ocrService.extractTextInterleaved(
+      pages,
+      renderPage,
+    );
 
     if (!ocrText) {
       throw new Error(

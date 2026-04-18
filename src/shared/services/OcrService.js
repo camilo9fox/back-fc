@@ -1,25 +1,32 @@
 const { createWorker, OEM, PSM } = require("tesseract.js");
 
-// 1 worker = secuencial, no paralelo → CPU nunca al 100% sostenido
-const WORKER_COUNT = 1;
+// 3 workers = OCR paralelo en tríos de páginas → mejora marginal sobre 2 workers
+// sin riesgo de saturar CPU porque el render (pdfjs) sigue siendo secuencial
+const WORKER_COUNT = 3;
 
 class OcrService {
   constructor() {
-    this._worker = null;
+    this._workers = [];
   }
 
-  async _getWorker() {
-    if (!this._worker) {
-      this._worker = await createWorker("spa+eng", OEM.LSTM_ONLY, {
-        // Suprime logs de Tesseract en consola
-        logger: () => {},
-        errorHandler: () => {},
-      });
-      await this._worker.setParameters({
-        tessedit_pageseg_mode: PSM.AUTO,
-      });
+  async _getWorkers() {
+    if (this._workers.length === WORKER_COUNT) return this._workers;
+
+    const pending = [];
+    for (let i = this._workers.length; i < WORKER_COUNT; i++) {
+      pending.push(
+        createWorker("spa+eng", OEM.LSTM_ONLY, {
+          logger: () => {},
+          errorHandler: () => {},
+        }).then(async (w) => {
+          await w.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
+          return w;
+        }),
+      );
     }
-    return this._worker;
+    const created = await Promise.all(pending);
+    this._workers.push(...created);
+    return this._workers;
   }
 
   /**
@@ -29,16 +36,27 @@ class OcrService {
    * @returns {Promise<string>}
    */
   async extractTextFromImages(pageImageBuffers) {
-    const worker = await this._getWorker();
-    const parts = [];
+    const workers = await this._getWorkers();
+    const parts = new Array(pageImageBuffers.length).fill("");
 
-    for (const imgBuffer of pageImageBuffers) {
-      const { data } = await worker.recognize(imgBuffer);
-      const cleaned = this._cleanOcrOutput(data.text);
-      if (cleaned) parts.push(cleaned);
-    }
+    // Distribute pages across workers in round-robin, run each worker's
+    // pages sequentially to avoid conflicts within a worker
+    const workerJobs = workers.map(() => []);
+    pageImageBuffers.forEach((buf, i) =>
+      workerJobs[i % workers.length].push({ buf, i }),
+    );
 
-    return parts.join("\n\n");
+    await Promise.all(
+      workerJobs.map(async (jobs, wi) => {
+        const w = workers[wi];
+        for (const { buf, i } of jobs) {
+          const { data } = await w.recognize(buf);
+          parts[i] = this._cleanOcrOutput(data.text);
+        }
+      }),
+    );
+
+    return parts.filter(Boolean).join("\n\n");
   }
 
   /**
@@ -90,34 +108,53 @@ class OcrService {
    * @param {AsyncGenerator<Buffer>} pageStream
    * @returns {Promise<string>}
    */
-  async extractTextPipelined(pageStream) {
-    const worker = await this._getWorker();
-    const parts = [];
+  /**
+   * Extracts text from PDF pages with a 1-page render lookahead.
+   *
+   * Safety guarantee: render(N+1) is only started AFTER render(N) has fully
+   * resolved, so pdfjs never has two concurrent renders. The overlap is only
+   * between pdfjs (idle, render done) and the Tesseract worker thread (OCR),
+   * which use completely separate resources.
+   *
+   * @param {number} pageCount
+   * @param {(index: number) => Promise<Buffer>} renderPage - must be called sequentially
+   * @returns {Promise<string>}
+   */
+  async extractTextInterleaved(pageCount, renderPage) {
+    if (pageCount === 0) return "";
+    const workers = await this._getWorkers();
+    const parts = new Array(pageCount).fill("");
 
-    // Eagerly request the first page from the generator
-    let next = pageStream.next();
+    // Render all pages sequentially (pdfjs constraint) into a buffer array,
+    // then distribute OCR across both workers in round-robin.
+    // Render and the first OCR batch overlap: while worker0 OCRs page 0,
+    // we continue rendering pages 1..N sequentially.
+    const buffers = new Array(pageCount);
+    buffers[0] = await renderPage(0);
 
-    while (true) {
-      const { value: imageBuffer, done } = await next;
-      if (done) break;
+    // Kick off OCR for page 0 on worker 0 immediately
+    const ocrPromises = new Array(pageCount);
+    ocrPromises[0] = workers[0].recognize(buffers[0]);
 
-      // Kick off the next render immediately — it will run on the event loop
-      // while Tesseract occupies its own worker thread below
-      next = pageStream.next();
-
-      const { data } = await worker.recognize(imageBuffer);
-      const cleaned = this._cleanOcrOutput(data.text);
-      if (cleaned) parts.push(cleaned);
+    for (let i = 1; i < pageCount; i++) {
+      // Render page i (sequential — pdfjs safe)
+      buffers[i] = await renderPage(i);
+      // Assign to a worker in round-robin and start OCR immediately
+      ocrPromises[i] = workers[i % workers.length].recognize(buffers[i]);
     }
 
-    return parts.join("\n\n");
+    // Collect results in order
+    for (let i = 0; i < pageCount; i++) {
+      const { data } = await ocrPromises[i];
+      parts[i] = this._cleanOcrOutput(data.text);
+    }
+
+    return parts.filter(Boolean).join("\n\n");
   }
 
   async terminate() {
-    if (this._worker) {
-      await this._worker.terminate();
-      this._worker = null;
-    }
+    await Promise.all(this._workers.map((w) => w.terminate()));
+    this._workers = [];
   }
 }
 

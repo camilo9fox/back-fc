@@ -88,6 +88,51 @@ class PdfRendererService {
   }
 
   /**
+   * Loads the PDF once and returns an object with pageCount and a renderPage(index)
+   * function. Renders are always sequential — calling renderPage(i+1) before
+   * renderPage(i) has resolved will cause pdfjs to freeze. The caller must
+   * await each renderPage call before starting the next one.
+   * @param {Buffer} buffer
+   * @param {number} totalPages
+   * @returns {Promise<{pageCount: number, renderPage: (index: number) => Promise<Buffer>}>}
+   */
+  async createPageRenderer(buffer, totalPages) {
+    const { createCanvas } = require("canvas");
+    const pdfjs = _loadPdfjs();
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) })
+      .promise;
+    const pageCount = Math.min(totalPages, MAX_PAGES);
+
+    const renderPage = async (index) => {
+      const page = await pdf.getPage(index + 1);
+      const viewport = page.getViewport({ scale: RENDER_SCALE });
+      const canvas = createCanvas(
+        Math.round(viewport.width),
+        Math.round(viewport.height),
+      );
+      const ctx = canvas.getContext("2d");
+      await page.render({
+        canvasContext: ctx,
+        viewport,
+        canvasFactory: {
+          create: (w, h) => {
+            const c = createCanvas(w, h);
+            return { canvas: c, context: c.getContext("2d") };
+          },
+          reset: (item, w, h) => {
+            item.canvas.width = w;
+            item.canvas.height = h;
+          },
+          destroy: () => {},
+        },
+      }).promise;
+      return canvas.toBuffer("image/png");
+    };
+
+    return { pageCount, renderPage };
+  }
+
+  /**
    * Async generator that yields one PNG Buffer per page.
    * Allows the caller to start OCR-ing page N while page N+1 is being rendered.
    * @param {Buffer} buffer
