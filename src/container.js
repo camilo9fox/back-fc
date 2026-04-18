@@ -261,6 +261,51 @@ class Container {
       return createStudyGuideRouter(c.get("studyGuideController"));
     });
 
+    // Stats
+    container.register("statsRepository", () => {
+      const SupabaseStatsRepository = require("./modules/stats/repositories/implementations/SupabaseStatsRepository");
+      return new SupabaseStatsRepository();
+    });
+
+    container.register("statsService", (c) => {
+      const StatsService = require("./modules/stats/services/StatsService");
+      return new StatsService(
+        c.get("statsRepository"),
+        c.get("attemptService"),
+      );
+    });
+
+    container.register("statsController", (c) => {
+      const StatsController = require("./modules/stats/controllers/StatsController");
+      return new StatsController(c.get("statsService"));
+    });
+
+    container.register("statsRoutes", (c) => {
+      const createStatsRouter = require("./modules/stats/routes/statsRoutes");
+      return createStatsRouter(c.get("statsController"));
+    });
+
+    // Attempts
+    container.register("attemptRepository", () => {
+      const SupabaseAttemptRepository = require("./modules/attempts/repositories/implementations/SupabaseAttemptRepository");
+      return new SupabaseAttemptRepository();
+    });
+
+    container.register("attemptService", (c) => {
+      const AttemptService = require("./modules/attempts/services/AttemptService");
+      return new AttemptService(c.get("attemptRepository"));
+    });
+
+    container.register("attemptController", (c) => {
+      const AttemptController = require("./modules/attempts/controllers/AttemptController");
+      return new AttemptController(c.get("attemptService"));
+    });
+
+    container.register("attemptRoutes", (c) => {
+      const createAttemptRouter = require("./modules/attempts/routes/attemptRoutes");
+      return createAttemptRouter(c.get("attemptController"));
+    });
+
     return container;
   }
 }

@@ -1,17 +1,25 @@
 -- =============================================================
---  StudyAI  ·  Full Schema  (v2)
+--  StudyAI  ·  Full Schema  (v3)
 --  Changes from v1:
 --    · flashcards.options column removed (classic Q/A format)
 --    · flashcards.category_id is now NOT NULL
 --    · NEW: quizzes + quiz_questions tables
 --    · NEW: true_false_sets + true_false_questions tables
+--  Changes from v2:
+--    · NEW: quiz_attempts table
+--    · NEW: true_false_attempts table
 -- =============================================================
 
 -- ────────────────────────────────────────────
 -- RESET: Drop everything in reverse dependency order
 -- ────────────────────────────────────────────
 
--- Questions / child tables first (depend on parent tables)
+-- Attempt tables first (no child dependencies)
+DROP TABLE IF EXISTS quiz_attempts        CASCADE;
+DROP TABLE IF EXISTS true_false_attempts  CASCADE;
+DROP TABLE IF EXISTS flashcard_sessions   CASCADE;
+
+-- Questions / child tables (depend on parent tables)
 DROP TABLE IF EXISTS true_false_questions CASCADE;
 DROP TABLE IF EXISTS quiz_questions       CASCADE;
 DROP TABLE IF EXISTS flashcards           CASCADE;
@@ -279,4 +287,75 @@ CREATE POLICY "Users can read their own study guides"   ON study_guides FOR SELE
 CREATE POLICY "Users can insert their own study guides" ON study_guides FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own study guides" ON study_guides FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own study guides" ON study_guides FOR DELETE USING (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────
+-- QUIZ ATTEMPTS
+-- Records each completed quiz session for history and stats.
+-- quiz_id is nullable so draft sessions can also be recorded.
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  quiz_id          UUID REFERENCES quizzes(id) ON DELETE SET NULL,
+  category_id      UUID REFERENCES categories(id) ON DELETE SET NULL,
+  score            INTEGER NOT NULL CHECK (score >= 0),
+  total_questions  INTEGER NOT NULL CHECK (total_questions > 0),
+  completed_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_id      ON quiz_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz_id      ON quiz_attempts(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_completed_at ON quiz_attempts(user_id, completed_at DESC);
+
+ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own quiz attempts"   ON quiz_attempts FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own quiz attempts" ON quiz_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────
+-- TRUE/FALSE ATTEMPTS
+-- Records each completed true/false session.
+-- set_id is nullable so draft sessions can also be recorded.
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS true_false_attempts (
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  set_id           UUID REFERENCES true_false_sets(id) ON DELETE SET NULL,
+  category_id      UUID REFERENCES categories(id) ON DELETE SET NULL,
+  score            INTEGER NOT NULL CHECK (score >= 0),
+  total_questions  INTEGER NOT NULL CHECK (total_questions > 0),
+  completed_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tf_attempts_user_id      ON true_false_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_tf_attempts_set_id       ON true_false_attempts(set_id);
+CREATE INDEX IF NOT EXISTS idx_tf_attempts_completed_at ON true_false_attempts(user_id, completed_at DESC);
+
+ALTER TABLE true_false_attempts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own tf attempts"   ON true_false_attempts FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own tf attempts" ON true_false_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────
+-- FLASHCARD SESSIONS
+-- Records each self-assessed flashcard study session.
+-- category_id is nullable to support "all cards" sessions across categories.
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS flashcard_sessions (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id        UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  category_id    UUID REFERENCES categories(id) ON DELETE SET NULL,
+  cards_known    INTEGER NOT NULL CHECK (cards_known >= 0),
+  cards_unknown  INTEGER NOT NULL CHECK (cards_unknown >= 0),
+  total_cards    INTEGER NOT NULL CHECK (total_cards > 0),
+  completed_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_fc_sessions_user_id      ON flashcard_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_fc_sessions_completed_at ON flashcard_sessions(user_id, completed_at DESC);
+
+ALTER TABLE flashcard_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own fc sessions"   ON flashcard_sessions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own fc sessions" ON flashcard_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
 -- =============================================================
