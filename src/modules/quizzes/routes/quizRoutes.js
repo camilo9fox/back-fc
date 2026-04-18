@@ -27,6 +27,14 @@ function createQuizRouter(controller) {
     controller.generateQuiz(req, res),
   );
 
+  router.post("/generate-async", upload.single("file"), (req, res) =>
+    controller.generateQuizAsync(req, res),
+  );
+
+  router.get("/generation-jobs/:jobId", (req, res) =>
+    controller.getGenerationJob(req, res),
+  );
+
   router.post("/", (req, res) => controller.createQuiz(req, res));
   router.get("/", (req, res) => controller.getQuizzes(req, res));
   router.get("/:id", (req, res) => controller.getQuizById(req, res));

@@ -53,7 +53,19 @@ class QuizService {
     });
   }
 
-  async generateQuiz({ file, text, title, categoryId, quantity, userId }) {
+  async generateQuiz({
+    file,
+    text,
+    title,
+    categoryId,
+    quantity,
+    userId,
+    onProgress,
+  }) {
+    const report = (stage, percent) => {
+      if (typeof onProgress === "function") onProgress({ stage, percent });
+    };
+
     if (!file && !text?.trim()) {
       throw new ValidationError(
         "Se requiere un archivo o texto para generar el cuestionario.",
@@ -69,12 +81,23 @@ class QuizService {
     if (!category)
       throw new NotFoundError("Categoría no encontrada o acceso denegado.");
 
+    report("Extrayendo contenido del archivo", 10);
     let content = file ? await this.fileService.extractText(file) : text;
+
+    report("Analizando el documento", 30);
     content = await this.documentProcessingService.buildStudyContext(
       content,
       this.groqService,
-      { maxLength: 4500 },
+      {
+        maxLength: 4500,
+        onProgress: ({ stage, percent }) => {
+          // map buildStudyContext 0-100 → 30-75
+          report(stage, 30 + Math.round(percent * 0.45));
+        },
+      },
     );
+
+    report("Generando preguntas", 78);
 
     const rawQuestions = await this.groqService.generateQuizQuestions(
       content,

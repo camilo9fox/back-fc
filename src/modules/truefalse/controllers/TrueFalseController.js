@@ -1,8 +1,9 @@
 const { AppError } = require("../../../shared/errors/AppError");
 
 class TrueFalseController {
-  constructor(trueFalseService) {
+  constructor(trueFalseService, generationJobService) {
     this.trueFalseService = trueFalseService;
+    this.generationJobService = generationJobService;
   }
 
   async createSet(req, res) {
@@ -108,6 +109,80 @@ class TrueFalseController {
 
       await this.trueFalseService.deleteQuestion(req.params.questionId, userId);
       res.json({ success: true });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async generateSetAsync(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+
+      const { title, categoryId, quantity } = req.body;
+      const file = req.file || null;
+      const text = req.body.text || "";
+
+      const job = this.generationJobService.createJob({
+        userId,
+        type: "truefalse-generation",
+        metadata: {
+          title,
+          quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 20),
+          fileName: file?.originalname || null,
+          inputMode: file ? "file" : "text",
+        },
+      });
+
+      res.status(202).json(job);
+
+      setImmediate(async () => {
+        try {
+          this.generationJobService.updateJob(job.id, userId, {
+            status: "processing",
+            progress: { stage: "Iniciando procesamiento", percent: 2 },
+          });
+
+          const statements = await this.trueFalseService.generateSet({
+            file,
+            text,
+            title,
+            categoryId,
+            quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 20),
+            userId,
+            onProgress: (progress) => {
+              this.generationJobService.updateJob(job.id, userId, {
+                status: "processing",
+                progress,
+              });
+            },
+          });
+
+          this.generationJobService.completeJob(job.id, userId, { statements });
+        } catch (error) {
+          this.generationJobService.failJob(
+            job.id,
+            userId,
+            error.message || "Error generando afirmaciones V/F",
+          );
+        }
+      });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async getGenerationJob(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+
+      const job = this.generationJobService.getJob(req.params.jobId, userId);
+      if (!job) return res.status(404).json({ error: "Job no encontrado" });
+
+      res.json(job);
     } catch (error) {
       this._handleError(error, res);
     }

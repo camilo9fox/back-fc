@@ -119,7 +119,7 @@ REGLAS OBLIGATORIAS:
         preferredModel: this.qualityModel,
         fallbackModel: this.fastModel,
         temperature: attempt === 1 ? 0.55 : 0.7,
-        max_completion_tokens: 8192,
+        max_completion_tokens: 3000,
         frequency_penalty: 0.4,
         presence_penalty: 0.25,
         responseFormat: { type: "json_object" },

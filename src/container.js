@@ -185,7 +185,10 @@ class Container {
 
     container.register("quizController", (c) => {
       const QuizController = require("./modules/quizzes/controllers/QuizController");
-      return new QuizController(c.get("quizService"));
+      return new QuizController(
+        c.get("quizService"),
+        c.get("generationJobService"),
+      );
     });
 
     container.register("quizRoutes", (c) => {
@@ -212,7 +215,10 @@ class Container {
 
     container.register("trueFalseController", (c) => {
       const TrueFalseController = require("./modules/truefalse/controllers/TrueFalseController");
-      return new TrueFalseController(c.get("trueFalseService"));
+      return new TrueFalseController(
+        c.get("trueFalseService"),
+        c.get("generationJobService"),
+      );
     });
 
     container.register("trueFalseRoutes", (c) => {
