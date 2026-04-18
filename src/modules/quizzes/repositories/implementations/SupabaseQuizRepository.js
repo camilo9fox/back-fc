@@ -58,12 +58,17 @@ class SupabaseQuizRepository extends IQuizRepository {
     try {
       const { limit = 50, offset = 0 } = options;
 
-      const { data, error } = await this.supabase
+      let query = this.supabase
         .from("quizzes")
         .select(`*, quiz_questions(*), categories(id, title, description)`)
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
+
+      if (options.categoryId)
+        query = query.eq("category_id", options.categoryId);
+
+      const { data, error } = await query;
 
       if (error) throw new Error(`Error fetching quizzes: ${error.message}`);
       return (data || []).map(this._normalize);

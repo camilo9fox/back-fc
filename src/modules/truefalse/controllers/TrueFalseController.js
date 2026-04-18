@@ -25,11 +25,12 @@ class TrueFalseController {
       if (!userId)
         return res.status(401).json({ error: "Authentication required" });
 
-      const { limit = 50, offset = 0 } = req.query;
+      const { limit = 50, offset = 0, categoryId } = req.query;
       const options = {
         limit: Math.min(parseInt(limit) || 50, 100),
         offset: parseInt(offset) || 0,
       };
+      if (categoryId) options.categoryId = categoryId;
 
       const sets = await this.trueFalseService.getSets(userId, options);
       res.json({ sets, pagination: options });

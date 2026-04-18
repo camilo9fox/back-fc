@@ -118,19 +118,6 @@ class FlashCardService {
       );
     }
 
-    // Get default category for the user
-    let defaultCategoryId = null;
-    try {
-      const defaultCategory =
-        await this.categoryService.getDefaultCategory(userId);
-      defaultCategoryId = defaultCategory.id;
-    } catch (error) {
-      console.warn(
-        "Could not find default category for AI-generated flashcards:",
-        error,
-      );
-    }
-
     this.reportProgress(onProgress, "Validando flashcards", 92);
 
     const flashCards = [];
@@ -149,7 +136,6 @@ class FlashCardService {
       flashCards.push({
         question: flashCardDto.question,
         answer: flashCardDto.answer,
-        categoryId: defaultCategoryId,
       });
     }
 

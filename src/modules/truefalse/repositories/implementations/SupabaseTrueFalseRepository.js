@@ -60,7 +60,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
     try {
       const { limit = 50, offset = 0 } = options;
 
-      const { data, error } = await this.supabase
+      let query = this.supabase
         .from("true_false_sets")
         .select(
           `*, true_false_questions(*), categories(id, title, description)`,
@@ -68,6 +68,11 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
+
+      if (options.categoryId)
+        query = query.eq("category_id", options.categoryId);
+
+      const { data, error } = await query;
 
       if (error)
         throw new Error(`Error fetching true/false sets: ${error.message}`);

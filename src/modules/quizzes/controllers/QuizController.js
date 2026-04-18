@@ -25,11 +25,12 @@ class QuizController {
       if (!userId)
         return res.status(401).json({ error: "Authentication required" });
 
-      const { limit = 50, offset = 0 } = req.query;
+      const { limit = 50, offset = 0, categoryId } = req.query;
       const options = {
         limit: Math.min(parseInt(limit) || 50, 100),
         offset: parseInt(offset) || 0,
       };
+      if (categoryId) options.categoryId = categoryId;
 
       const quizzes = await this.quizService.getQuizzes(userId, options);
       res.json({ quizzes, pagination: options });
