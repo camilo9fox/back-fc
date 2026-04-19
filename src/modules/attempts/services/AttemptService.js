@@ -84,6 +84,23 @@ class AttemptService {
     return this.attemptRepository.getAttemptStats(userId);
   }
 
+  /**
+   * Returns daily activity data for charts.
+   * @param {string} userId
+   */
+  async getChartData(userId) {
+    return this.attemptRepository.getChartData(userId);
+  }
+
+  /**
+   * Returns paginated attempt history with optional filters.
+   * @param {string} userId
+   * @param {{ type?: string, categoryId?: string, from?: string, to?: string, page?: number, limit?: number }} filters
+   */
+  async getHistory(userId, filters = {}) {
+    return this.attemptRepository.getHistory(userId, filters);
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
 
   _validateScore(score, totalQuestions) {

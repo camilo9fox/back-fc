@@ -76,6 +76,40 @@ class AttemptController {
     }
   }
 
+  async getChartData(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const data = await this.attemptService.getChartData(userId);
+      res.status(200).json(data);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async getHistory(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { type, categoryId, from, to, page, limit } = req.query;
+      const data = await this.attemptService.getHistory(userId, {
+        type,
+        categoryId,
+        from,
+        to,
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 20,
+      });
+      res.status(200).json(data);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
   _handleError(error, res) {
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });

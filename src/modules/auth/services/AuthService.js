@@ -204,6 +204,24 @@ class AuthService {
   }
 
   /**
+   * Deletes a user account and all associated data
+   * @param {string} userId - User ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async deleteAccount(userId) {
+    try {
+      if (!userId) {
+        throw new ValidationError("User ID is required");
+      }
+
+      return await this.authRepository.deleteAccount(userId);
+    } catch (error) {
+      console.error("AuthService.deleteAccount error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Verifies a JWT token and returns user data
    * @param {string} token - JWT token
    * @returns {Promise<Object|null>} User data if valid, null if invalid

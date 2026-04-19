@@ -155,6 +155,20 @@ class ManualFlashCardService {
   }
 
   /**
+   * Publishes or unpublishes all flashcards in a category owned by userId.
+   * @param {string} categoryId
+   * @param {string} userId
+   * @param {boolean} isPublic
+   */
+  async publishByCategory(categoryId, userId, isPublic) {
+    return this.flashCardRepository.publishByCategory(
+      categoryId,
+      userId,
+      isPublic,
+    );
+  }
+
+  /**
    * Validates flashcard data (extracted for reuse)
    * @param {Object} flashCardData - Flashcard data to validate
    * @returns {Object} Validated flashcard data

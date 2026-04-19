@@ -277,6 +277,30 @@ class AuthController {
       res.status(500).json({ error: "Internal server error" });
     }
   }
+
+  /**
+   * Deletes the authenticated user's account
+   * DELETE /auth/account
+   */
+  async deleteAccount(req, res) {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      await this.authService.deleteAccount(userId);
+
+      res.json({ message: "Account deleted successfully" });
+    } catch (error) {
+      console.error("AuthController.deleteAccount error:", error);
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
 }
 
 module.exports = AuthController;

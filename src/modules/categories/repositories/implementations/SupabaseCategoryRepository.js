@@ -217,6 +217,73 @@ class SupabaseCategoryRepository extends ICategoryRepository {
       throw error;
     }
   }
+
+  async countContent(categoryId, userId) {
+    try {
+      const [fcRes, qRes, tfRes] = await Promise.all([
+        this.supabase
+          .from("flashcards")
+          .select("*", { count: "exact", head: true })
+          .eq("category_id", categoryId)
+          .eq("user_id", userId),
+        this.supabase
+          .from("quizzes")
+          .select("*", { count: "exact", head: true })
+          .eq("category_id", categoryId)
+          .eq("user_id", userId),
+        this.supabase
+          .from("true_false_sets")
+          .select("*", { count: "exact", head: true })
+          .eq("category_id", categoryId)
+          .eq("user_id", userId),
+      ]);
+      return (fcRes.count || 0) + (qRes.count || 0) + (tfRes.count || 0);
+    } catch (error) {
+      console.error("SupabaseCategoryRepository.countContent error:", error);
+      throw error;
+    }
+  }
+
+  async publish(id, userId, isPublic) {
+    try {
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .update({ is_public: isPublic })
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select("id, is_public")
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") return null;
+        throw new Error(`Error publishing category: ${error.message}`);
+      }
+
+      // Propagate is_public to all content in this category
+      await Promise.all([
+        this.supabase
+          .from("flashcards")
+          .update({ is_public: isPublic })
+          .eq("category_id", id)
+          .eq("user_id", userId),
+        this.supabase
+          .from("quizzes")
+          .update({ is_public: isPublic })
+          .eq("category_id", id)
+          .eq("user_id", userId),
+        this.supabase
+          .from("true_false_sets")
+          .update({ is_public: isPublic })
+          .eq("category_id", id)
+          .eq("user_id", userId),
+      ]);
+
+      return { id, is_public: isPublic };
+    } catch (error) {
+      console.error("SupabaseCategoryRepository.publish error:", error);
+      throw error;
+    }
+  }
 }
 
 module.exports = SupabaseCategoryRepository;

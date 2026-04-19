@@ -1,5 +1,5 @@
 -- =============================================================
---  StudyAI  ·  Full Schema  (v3)
+--  StudyAI  ·  Full Schema  (v4)
 --  Changes from v1:
 --    · flashcards.options column removed (classic Q/A format)
 --    · flashcards.category_id is now NOT NULL
@@ -8,11 +8,31 @@
 --  Changes from v2:
 --    · NEW: quiz_attempts table
 --    · NEW: true_false_attempts table
+--  Changes from v3:
+--    · NEW: Library / sharing feature
+--      - is_public flag on categories, flashcards, quizzes, true_false_sets
+--      - Publishing a category propagates is_public to all its content
+--      - RLS updated: own OR public content is readable
+--      - Partial indexes for efficient public-content queries
 -- =============================================================
 
 -- ────────────────────────────────────────────
 -- RESET: Drop everything in reverse dependency order
 -- ────────────────────────────────────────────
+
+-- Policies must be dropped BEFORE their tables (tables must still exist)
+DROP POLICY IF EXISTS "Users can read their own categories"          ON categories;
+DROP POLICY IF EXISTS "Users can read their own flashcards"          ON flashcards;
+DROP POLICY IF EXISTS "Users can read their own quizzes"             ON quizzes;
+DROP POLICY IF EXISTS "Users can read their own tf sets"             ON true_false_sets;
+DROP POLICY IF EXISTS "Users can read their quiz questions"          ON quiz_questions;
+DROP POLICY IF EXISTS "Users can read their tf questions"            ON true_false_questions;
+DROP POLICY IF EXISTS "Read own or public categories"                ON categories;
+DROP POLICY IF EXISTS "Read own or public flashcards"                ON flashcards;
+DROP POLICY IF EXISTS "Read own or public quizzes"                   ON quizzes;
+DROP POLICY IF EXISTS "Read own or public tf sets"                   ON true_false_sets;
+DROP POLICY IF EXISTS "Read quiz questions of own or public quiz"    ON quiz_questions;
+DROP POLICY IF EXISTS "Read tf questions of own or public set"       ON true_false_questions;
 
 -- Attempt tables first (no child dependencies)
 DROP TABLE IF EXISTS quiz_attempts        CASCADE;
@@ -53,12 +73,14 @@ CREATE TABLE IF NOT EXISTS categories (
   user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title       VARCHAR(255) NOT NULL,
   description TEXT,
+  is_public   BOOLEAN NOT NULL DEFAULT false,
   created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_categories_user_id    ON categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_categories_created_at ON categories(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_categories_public     ON categories(created_at DESC) WHERE is_public = true;
 
 CREATE TRIGGER update_categories_updated_at
     BEFORE UPDATE ON categories
@@ -66,7 +88,7 @@ CREATE TRIGGER update_categories_updated_at
 
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own categories"   ON categories FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Read own or public categories"        ON categories FOR SELECT USING (auth.uid() = user_id OR is_public = true);
 CREATE POLICY "Users can insert their own categories" ON categories FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own categories" ON categories FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own categories" ON categories FOR DELETE USING (auth.uid() = user_id);
@@ -82,6 +104,7 @@ CREATE TABLE IF NOT EXISTS flashcards (
   question    TEXT NOT NULL,
   answer      TEXT NOT NULL,
   source      TEXT NOT NULL CHECK (source IN ('ai', 'manual')),
+  is_public   BOOLEAN NOT NULL DEFAULT false,
   created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -92,6 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_flashcards_source       ON flashcards(source);
 CREATE INDEX IF NOT EXISTS idx_flashcards_created_at   ON flashcards(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_flashcards_user_created ON flashcards(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_flashcards_user_category ON flashcards(user_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_flashcards_public        ON flashcards(category_id, created_at DESC) WHERE is_public = true;
 
 CREATE TRIGGER update_flashcards_updated_at
     BEFORE UPDATE ON flashcards
@@ -99,7 +123,7 @@ CREATE TRIGGER update_flashcards_updated_at
 
 ALTER TABLE flashcards ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own flashcards"   ON flashcards FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Read own or public flashcards"        ON flashcards FOR SELECT USING (auth.uid() = user_id OR is_public = true);
 CREATE POLICY "Users can insert their own flashcards" ON flashcards FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own flashcards" ON flashcards FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own flashcards" ON flashcards FOR DELETE USING (auth.uid() = user_id);
@@ -113,6 +137,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
   category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
   title       VARCHAR(255) NOT NULL,
   description TEXT,
+  is_public   BOOLEAN NOT NULL DEFAULT false,
   created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -120,6 +145,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
 CREATE INDEX IF NOT EXISTS idx_quizzes_user_id     ON quizzes(user_id);
 CREATE INDEX IF NOT EXISTS idx_quizzes_category_id ON quizzes(category_id);
 CREATE INDEX IF NOT EXISTS idx_quizzes_created_at  ON quizzes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quizzes_public      ON quizzes(created_at DESC) WHERE is_public = true;
 
 CREATE TRIGGER update_quizzes_updated_at
     BEFORE UPDATE ON quizzes
@@ -127,7 +153,7 @@ CREATE TRIGGER update_quizzes_updated_at
 
 ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own quizzes"   ON quizzes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Read own or public quizzes"        ON quizzes FOR SELECT USING (auth.uid() = user_id OR is_public = true);
 CREATE POLICY "Users can insert their own quizzes" ON quizzes FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own quizzes" ON quizzes FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own quizzes" ON quizzes FOR DELETE USING (auth.uid() = user_id);
@@ -151,9 +177,9 @@ CREATE INDEX IF NOT EXISTS idx_quiz_questions_order   ON quiz_questions(quiz_id,
 ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
 
 -- Questions inherit access through their parent quiz (join-based check)
-CREATE POLICY "Users can read their quiz questions" ON quiz_questions
+CREATE POLICY "Read quiz questions of own or public quiz" ON quiz_questions
     FOR SELECT USING (
-      EXISTS (SELECT 1 FROM quizzes q WHERE q.id = quiz_id AND q.user_id = auth.uid())
+      EXISTS (SELECT 1 FROM quizzes q WHERE q.id = quiz_id AND (q.user_id = auth.uid() OR q.is_public = true))
     );
 
 CREATE POLICY "Users can insert their quiz questions" ON quiz_questions
@@ -180,6 +206,7 @@ CREATE TABLE IF NOT EXISTS true_false_sets (
   category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
   title       VARCHAR(255) NOT NULL,
   description TEXT,
+  is_public   BOOLEAN NOT NULL DEFAULT false,
   created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -187,6 +214,7 @@ CREATE TABLE IF NOT EXISTS true_false_sets (
 CREATE INDEX IF NOT EXISTS idx_tf_sets_user_id     ON true_false_sets(user_id);
 CREATE INDEX IF NOT EXISTS idx_tf_sets_category_id ON true_false_sets(category_id);
 CREATE INDEX IF NOT EXISTS idx_tf_sets_created_at  ON true_false_sets(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tf_sets_public      ON true_false_sets(created_at DESC) WHERE is_public = true;
 
 CREATE TRIGGER update_true_false_sets_updated_at
     BEFORE UPDATE ON true_false_sets
@@ -194,7 +222,7 @@ CREATE TRIGGER update_true_false_sets_updated_at
 
 ALTER TABLE true_false_sets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own tf sets"   ON true_false_sets FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Read own or public tf sets"        ON true_false_sets FOR SELECT USING (auth.uid() = user_id OR is_public = true);
 CREATE POLICY "Users can insert their own tf sets" ON true_false_sets FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own tf sets" ON true_false_sets FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own tf sets" ON true_false_sets FOR DELETE USING (auth.uid() = user_id);
@@ -215,9 +243,9 @@ CREATE INDEX IF NOT EXISTS idx_tf_questions_order  ON true_false_questions(set_i
 
 ALTER TABLE true_false_questions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their tf questions" ON true_false_questions
+CREATE POLICY "Read tf questions of own or public set" ON true_false_questions
     FOR SELECT USING (
-      EXISTS (SELECT 1 FROM true_false_sets s WHERE s.id = set_id AND s.user_id = auth.uid())
+      EXISTS (SELECT 1 FROM true_false_sets s WHERE s.id = set_id AND (s.user_id = auth.uid() OR s.is_public = true))
     );
 
 CREATE POLICY "Users can insert their tf questions" ON true_false_questions
@@ -236,8 +264,9 @@ CREATE POLICY "Users can delete their tf questions" ON true_false_questions
     );
 
 -- =============================================================
--- MIGRATION SCRIPT  (run this if upgrading from v1)
+-- MIGRATION SCRIPT  (run this if upgrading from v1/v2/v3)
 -- =============================================================
+-- ── v1 → v2 / v3 ─────────────────────────────────────────────────────────────
 -- Step 1: ensure every flashcard has a category (create a "General" default)
 INSERT INTO categories (user_id, title, description)
 SELECT DISTINCT user_id, 'General', 'Categoría general'
@@ -259,6 +288,19 @@ ALTER TABLE flashcards ALTER COLUMN category_id SET NOT NULL;
 ALTER TABLE flashcards DROP CONSTRAINT IF EXISTS flashcards_category_id_fkey;
 ALTER TABLE flashcards ADD CONSTRAINT flashcards_category_id_fkey
   FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE;
+
+-- ── v3 → v4: Library / sharing feature ───────────────────────────────────────
+-- Step 3: add is_public columns
+ALTER TABLE categories      ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE flashcards      ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE quizzes         ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE true_false_sets ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
+
+-- Step 4: add partial indexes for public content
+CREATE INDEX IF NOT EXISTS idx_categories_public ON categories(created_at DESC) WHERE is_public = true;
+CREATE INDEX IF NOT EXISTS idx_flashcards_public  ON flashcards(category_id, created_at DESC) WHERE is_public = true;
+CREATE INDEX IF NOT EXISTS idx_quizzes_public     ON quizzes(created_at DESC) WHERE is_public = true;
+CREATE INDEX IF NOT EXISTS idx_tf_sets_public     ON true_false_sets(created_at DESC) WHERE is_public = true;
 
 -- ────────────────────────────────────────────
 -- STUDY GUIDES

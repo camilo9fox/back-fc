@@ -146,6 +146,10 @@ class QuizService {
     return this.quizRepository.delete(id, userId);
   }
 
+  async publish(id, userId, isPublic) {
+    return this.quizRepository.publish(id, userId, isPublic);
+  }
+
   async addQuestion(quizId, userId, questionData) {
     const dto = new QuizQuestionDto(
       questionData.question,

@@ -44,6 +44,7 @@ function createTrueFalseRouter(controller) {
   router.delete("/:id/questions/:questionId", (req, res) =>
     controller.deleteQuestion(req, res),
   );
+  router.patch("/:id/publish", (req, res) => controller.publish(req, res));
 
   return router;
 }

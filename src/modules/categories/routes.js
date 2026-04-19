@@ -26,6 +26,11 @@ function createCategoryRouter(categoryController) {
     categoryController.deleteCategory(req, res),
   );
 
+  // Publish / unpublish a category (propagates to all its content)
+  router.patch("/:id/publish", (req, res) =>
+    categoryController.publishCategory(req, res),
+  );
+
   return router;
 }
 

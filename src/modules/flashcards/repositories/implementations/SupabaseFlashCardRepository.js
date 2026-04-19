@@ -232,6 +232,34 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
   }
 
   /**
+   * Toggles is_public for all flashcards in a category owned by userId.
+   * @param {string} categoryId
+   * @param {string} userId
+   * @param {boolean} isPublic
+   * @returns {Promise<{ count: number }>}
+   */
+  async publishByCategory(categoryId, userId, isPublic) {
+    try {
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .update({ is_public: isPublic })
+        .eq("category_id", categoryId)
+        .eq("user_id", userId)
+        .select("id");
+
+      if (error)
+        throw new Error(`Error publishing flashcards: ${error.message}`);
+      return { count: (data || []).length, isPublic };
+    } catch (error) {
+      console.error(
+        "SupabaseFlashCardRepository.publishByCategory error:",
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Deletes a flashcard by ID
    * @param {string} id - FlashCard ID
    * @returns {Promise<boolean>} True if deleted, false if not found

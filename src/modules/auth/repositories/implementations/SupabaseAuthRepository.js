@@ -215,6 +215,27 @@ class SupabaseAuthRepository {
   }
 
   /**
+   * Deletes a user account and all associated data
+   * @param {string} userId - User ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async deleteAccount(userId) {
+    try {
+      const { error } = await this.supabase.auth.admin.deleteUser(userId);
+
+      if (error) {
+        console.error("Supabase deleteUser error:", error);
+        throw new Error(`Error deleting account: ${error.message}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error("SupabaseAuthRepository.deleteAccount error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Verifies if a session token is valid
    * @param {string} token - JWT token
    * @returns {Promise<Object|null>} User data if valid, null if invalid

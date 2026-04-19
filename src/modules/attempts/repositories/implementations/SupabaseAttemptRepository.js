@@ -140,16 +140,260 @@ class SupabaseAttemptRepository extends IAttemptRepository {
       categoryTitle: a.categories?.title ?? null,
     }));
 
+    // Average score grouped by category_id (quiz + TF only)
+    const scoreMap = {};
+    for (const a of quizAndTf) {
+      const catId = a.category_id ?? "__none__";
+      if (!scoreMap[catId]) scoreMap[catId] = { sum: 0, count: 0 };
+      scoreMap[catId].sum += (a.score / a.total_questions) * 100;
+      scoreMap[catId].count += 1;
+    }
+    const avgScoreByCategory = Object.fromEntries(
+      Object.entries(scoreMap).map(([catId, { sum, count }]) => [
+        catId,
+        Math.round(sum / count),
+      ]),
+    );
+
     return {
       totalAttempts,
       totalFlashcardSessions,
       avgScore,
       currentStreak,
       recentAttempts,
+      avgScoreByCategory,
     };
   }
 
+  /**
+   * Returns paginated attempt history with optional filters.
+   * Merges quiz_attempts, true_false_attempts, and flashcard_sessions into one list.
+   */
+  async getHistory(
+    userId,
+    { type, categoryId, from, to, page = 1, limit = 20 } = {},
+  ) {
+    const offset = (page - 1) * limit;
+
+    const shouldInclude = (t) => !type || type === t;
+
+    // Fetch all three tables in parallel (we filter + sort in JS to keep queries simple)
+    const [quizRows, tfRows, fcRows] = await Promise.all([
+      shouldInclude("quiz")
+        ? this._fetchHistoryRows(
+            "quiz_attempts",
+            userId,
+            categoryId,
+            from,
+            to,
+            [
+              "id",
+              "score",
+              "total_questions",
+              "completed_at",
+              "categories(id,title)",
+            ],
+          )
+        : [],
+      shouldInclude("true-false")
+        ? this._fetchHistoryRows(
+            "true_false_attempts",
+            userId,
+            categoryId,
+            from,
+            to,
+            [
+              "id",
+              "score",
+              "total_questions",
+              "completed_at",
+              "categories(id,title)",
+            ],
+          )
+        : [],
+      shouldInclude("flashcards")
+        ? this._fetchHistoryRows(
+            "flashcard_sessions",
+            userId,
+            categoryId,
+            from,
+            to,
+            [
+              "id",
+              "cards_known",
+              "cards_unknown",
+              "total_cards",
+              "completed_at",
+              "categories(id,title)",
+            ],
+          )
+        : [],
+    ]);
+
+    // Normalize into a uniform shape
+    const items = [
+      ...quizRows.map((r) => ({
+        id: r.id,
+        type: "quiz",
+        categoryId: r.categories?.id ?? null,
+        categoryTitle: r.categories?.title ?? null,
+        score: r.score,
+        total: r.total_questions,
+        pct: Math.round((r.score / r.total_questions) * 100),
+        completedAt: r.completed_at,
+      })),
+      ...tfRows.map((r) => ({
+        id: r.id,
+        type: "true-false",
+        categoryId: r.categories?.id ?? null,
+        categoryTitle: r.categories?.title ?? null,
+        score: r.score,
+        total: r.total_questions,
+        pct: Math.round((r.score / r.total_questions) * 100),
+        completedAt: r.completed_at,
+      })),
+      ...fcRows.map((r) => ({
+        id: r.id,
+        type: "flashcards",
+        categoryId: r.categories?.id ?? null,
+        categoryTitle: r.categories?.title ?? null,
+        score: r.cards_known,
+        total: r.total_cards,
+        pct: Math.round((r.cards_known / r.total_cards) * 100),
+        completedAt: r.completed_at,
+      })),
+    ];
+
+    // Sort descending by date
+    items.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+
+    const total = items.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const paged = items.slice(offset, offset + limit);
+
+    return { items: paged, total, page, totalPages };
+  }
+
+  async _fetchHistoryRows(table, userId, categoryId, from, to, columns) {
+    let query = this.supabase
+      .from(table)
+      .select(columns.join(", "))
+      .eq("user_id", userId)
+      .order("completed_at", { ascending: false });
+
+    if (categoryId) {
+      query = query.eq("category_id", categoryId);
+    }
+    if (from) {
+      query = query.gte("completed_at", from);
+    }
+    if (to) {
+      // Include the full day by using the day after as exclusive upper bound
+      const toDate = new Date(to);
+      toDate.setDate(toDate.getDate() + 1);
+      query = query.lt("completed_at", toDate.toISOString());
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Error fetching ${table}: ${error.message}`);
+    return data ?? [];
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Builds daily activity + score chart data for the last N days.
+   * Aggregates quiz_attempts, true_false_attempts, and flashcard_sessions by calendar day.
+   */
+  async getChartData(userId, days = 14) {
+    const since = new Date(Date.now() - days * MS_PER_DAY).toISOString();
+
+    const [quizRows, tfRows, fcRows] = await Promise.all([
+      this._fetchRowsSince("quiz_attempts", userId, since, [
+        "score",
+        "total_questions",
+        "completed_at",
+      ]),
+      this._fetchRowsSince("true_false_attempts", userId, since, [
+        "score",
+        "total_questions",
+        "completed_at",
+      ]),
+      this._fetchRowsSince("flashcard_sessions", userId, since, [
+        "cards_known",
+        "total_cards",
+        "completed_at",
+      ]),
+    ]);
+
+    // Build ordered list of the last N days as labels
+    const labels = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * MS_PER_DAY);
+      labels.push(this._dayKey(d));
+    }
+
+    // Helpers to bucket rows into day keys
+    const bucket = (rows, key = "completed_at") => {
+      const map = {};
+      for (const r of rows) {
+        const k = this._dayKey(new Date(r[key]));
+        if (!map[k]) map[k] = [];
+        map[k].push(r);
+      }
+      return map;
+    };
+
+    const quizByDay = bucket(quizRows);
+    const tfByDay = bucket(tfRows);
+    const fcByDay = bucket(fcRows);
+
+    const activityByDay = labels.map((label) => ({
+      date: label,
+      quizzes: (quizByDay[label] ?? []).length,
+      trueFalse: (tfByDay[label] ?? []).length,
+      flashcards: (fcByDay[label] ?? []).length,
+    }));
+
+    // Score chart: average score % per day (quiz + TF only)
+    const scoreByDay = labels.map((label) => {
+      const allAttempts = [
+        ...(quizByDay[label] ?? []),
+        ...(tfByDay[label] ?? []),
+      ];
+      if (allAttempts.length === 0) return { date: label, avgScore: null };
+      const avg =
+        allAttempts.reduce(
+          (sum, a) => sum + (a.score / a.total_questions) * 100,
+          0,
+        ) / allAttempts.length;
+      return { date: label, avgScore: Math.round(avg) };
+    });
+
+    return { activityByDay, scoreByDay };
+  }
+
+  async _fetchRowsSince(table, userId, since, columns) {
+    const { data, error } = await this.supabase
+      .from(table)
+      .select(columns.join(", "))
+      .eq("user_id", userId)
+      .gte("completed_at", since)
+      .order("completed_at", { ascending: true });
+
+    if (error) {
+      throw new Error(`Error fetching ${table}: ${error.message}`);
+    }
+    return data ?? [];
+  }
+
+  /** Returns a short day label like "12 abr" */
+  _dayKey(date) {
+    return date.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "short",
+    });
+  }
 
   async _fetchAttempts(table, userId) {
     const { data, error } = await this.supabase

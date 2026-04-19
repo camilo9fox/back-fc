@@ -74,6 +74,10 @@ function createFlashCardRouter(flashCardController) {
     flashCardController.getFlashCardById(req, res),
   );
 
+  router.patch("/category/:categoryId/publish", authMiddleware, (req, res) =>
+    flashCardController.publishCategory(req, res),
+  );
+
   return router;
 }
 

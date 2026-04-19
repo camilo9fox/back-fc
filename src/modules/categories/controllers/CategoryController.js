@@ -164,6 +164,27 @@ class CategoryController {
       .status(500)
       .json({ error: error.message || "Error interno del servidor" });
   }
+
+  async publishCategory(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+
+      const { id } = req.params;
+      const { is_public } = req.body;
+
+      if (typeof is_public !== "boolean")
+        return res
+          .status(400)
+          .json({ error: "is_public (boolean) is required" });
+
+      const result = await this.categoryService.publish(id, userId, is_public);
+      res.json(result);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
 }
 
 module.exports = CategoryController;

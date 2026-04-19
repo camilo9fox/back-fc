@@ -13,6 +13,8 @@ function createAttemptRouter(controller) {
   router.post("/flashcards", (req, res) =>
     controller.recordFlashcardSession(req, res),
   );
+  router.get("/chart-data", (req, res) => controller.getChartData(req, res));
+  router.get("/history", (req, res) => controller.getHistory(req, res));
 
   return router;
 }

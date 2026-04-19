@@ -45,6 +45,26 @@ class IAttemptRepository {
   async getAttemptStats(userId) {
     throw new Error("IAttemptRepository.getAttemptStats() must be implemented");
   }
+
+  /**
+   * Returns daily activity data for the last N days (default 14).
+   * @param {string} userId
+   * @param {number} [days=14]
+   * @returns {Promise<{ activityByDay: Array, scoreByDay: Array }>}
+   */
+  async getChartData(userId, days = 14) {
+    throw new Error("IAttemptRepository.getChartData() must be implemented");
+  }
+
+  /**
+   * Returns paginated attempt history with optional filters.
+   * @param {string} userId
+   * @param {{ type?: string, categoryId?: string, page?: number, limit?: number }} filters
+   * @returns {Promise<{ items: Array, total: number, page: number, totalPages: number }>}
+   */
+  async getHistory(userId, filters) {
+    throw new Error("IAttemptRepository.getHistory() must be implemented");
+  }
 }
 
 module.exports = IAttemptRepository;

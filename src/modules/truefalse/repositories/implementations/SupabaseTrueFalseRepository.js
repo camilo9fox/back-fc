@@ -159,6 +159,32 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
     }
   }
 
+  /**
+   * Toggles the is_public flag for a true/false set owned by userId.
+   * @param {string} id
+   * @param {string} userId
+   * @param {boolean} isPublic
+   */
+  async publish(id, userId, isPublic) {
+    try {
+      const { data, error } = await this.supabase
+        .from("true_false_sets")
+        .update({ is_public: isPublic })
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select("id, is_public")
+        .single();
+
+      if (error)
+        throw new Error(`Error publishing true/false set: ${error.message}`);
+      if (!data) throw new NotFoundError("Set not found or access denied");
+      return data;
+    } catch (error) {
+      console.error("SupabaseTrueFalseRepository.publish error:", error);
+      throw error;
+    }
+  }
+
   async addQuestion(setId, userId, questionData) {
     try {
       const set = await this.findById(setId, userId);

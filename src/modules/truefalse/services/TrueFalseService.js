@@ -149,6 +149,10 @@ class TrueFalseService {
     return this.trueFalseRepository.delete(id, userId);
   }
 
+  async publish(id, userId, isPublic) {
+    return this.trueFalseRepository.publish(id, userId, isPublic);
+  }
+
   async addQuestion(setId, userId, questionData) {
     const isTrue =
       typeof questionData.isTrue !== "undefined"

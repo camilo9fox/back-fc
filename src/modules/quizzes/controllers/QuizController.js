@@ -213,6 +213,29 @@ class QuizController {
     }
   }
 
+  async publish(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+
+      const isPublic = req.body.is_public;
+      if (typeof isPublic !== "boolean")
+        return res
+          .status(400)
+          .json({ error: "is_public (boolean) is required" });
+
+      const result = await this.quizService.publish(
+        req.params.id,
+        userId,
+        isPublic,
+      );
+      res.json(result);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
   _handleError(error, res) {
     console.error("QuizController error:", error.message);
     if (error instanceof AppError) {

@@ -104,6 +104,7 @@ class CategoryDto {
       title: category.title,
       description: category.description,
       userId: category.user_id,
+      isPublic: category.is_public ?? false,
       createdAt: category.created_at,
       updatedAt: category.updated_at,
     };

@@ -53,6 +53,11 @@ class AuthRoutes {
       authMiddleware,
       this.authController.updatePassword.bind(this.authController),
     );
+    this.router.delete(
+      "/account",
+      authMiddleware,
+      this.authController.deleteAccount.bind(this.authController),
+    );
   }
 
   getRouter() {

@@ -306,6 +306,27 @@ class Container {
       return createAttemptRouter(c.get("attemptController"));
     });
 
+    // Library
+    container.register("libraryRepository", () => {
+      const SupabaseLibraryRepository = require("./modules/library/repositories/implementations/SupabaseLibraryRepository");
+      return new SupabaseLibraryRepository();
+    });
+
+    container.register("libraryService", (c) => {
+      const LibraryService = require("./modules/library/services/LibraryService");
+      return new LibraryService(c.get("libraryRepository"));
+    });
+
+    container.register("libraryController", (c) => {
+      const LibraryController = require("./modules/library/controllers/LibraryController");
+      return new LibraryController(c.get("libraryService"));
+    });
+
+    container.register("libraryRoutes", (c) => {
+      const createLibraryRouter = require("./modules/library/routes/libraryRoutes");
+      return createLibraryRouter(c.get("libraryController"));
+    });
+
     return container;
   }
 }

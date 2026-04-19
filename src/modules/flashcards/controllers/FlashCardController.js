@@ -361,6 +361,31 @@ class FlashCardController {
       this._handleError(error, res);
     }
   }
+
+  async publishCategory(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+
+      const { categoryId } = req.params;
+      const isPublic = req.body.is_public;
+
+      if (typeof isPublic !== "boolean")
+        return res
+          .status(400)
+          .json({ error: "is_public (boolean) is required" });
+
+      const result = await this.manualFlashCardService.publishByCategory(
+        categoryId,
+        userId,
+        isPublic,
+      );
+      res.json(result);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
 }
 
 module.exports = FlashCardController;

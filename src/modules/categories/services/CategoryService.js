@@ -1,5 +1,8 @@
 const CategoryDto = require("../dtos/CategoryDto");
-const { NotFoundError } = require("../../../shared/errors/AppError");
+const {
+  NotFoundError,
+  ValidationError,
+} = require("../../../shared/errors/AppError");
 
 /**
  * Service class for category business logic
@@ -102,6 +105,20 @@ class CategoryService {
     }
 
     return CategoryDto.toResponse(categories[0]);
+  }
+
+  async publish(id, userId, isPublic) {
+    if (isPublic) {
+      const total = await this.categoryRepository.countContent(id, userId);
+      if (total === 0) {
+        throw new ValidationError(
+          "No puedes publicar un tema vacío. Agrega flashcards, cuestionarios o sets de V/F primero.",
+        );
+      }
+    }
+    const result = await this.categoryRepository.publish(id, userId, isPublic);
+    if (!result) throw new NotFoundError("Category not found");
+    return result;
   }
 }
 

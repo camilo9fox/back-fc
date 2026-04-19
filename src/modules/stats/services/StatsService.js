@@ -24,7 +24,19 @@ class StatsService {
 
     const mostActive = this._findMostActive(categoryBreakdown);
 
-    return { totals, categoryBreakdown, mostActive, attemptStats };
+    // Merge avg score per category into the breakdown rows
+    const { avgScoreByCategory = {} } = attemptStats;
+    const enrichedBreakdown = categoryBreakdown.map((row) => ({
+      ...row,
+      avgScore: avgScoreByCategory[row.id] ?? null,
+    }));
+
+    return {
+      totals,
+      categoryBreakdown: enrichedBreakdown,
+      mostActive,
+      attemptStats,
+    };
   }
 
   // ─── Private helpers ────────────────────────────────────────────────────────

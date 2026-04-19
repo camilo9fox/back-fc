@@ -184,6 +184,31 @@ class SupabaseQuizRepository extends IQuizRepository {
     }
   }
 
+  /**
+   * Toggles the is_public flag for a quiz owned by userId.
+   * @param {string} id
+   * @param {string} userId
+   * @param {boolean} isPublic
+   */
+  async publish(id, userId, isPublic) {
+    try {
+      const { data, error } = await this.supabase
+        .from("quizzes")
+        .update({ is_public: isPublic })
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select("id, is_public")
+        .single();
+
+      if (error) throw new Error(`Error publishing quiz: ${error.message}`);
+      if (!data) throw new NotFoundError("Quiz not found or access denied");
+      return data;
+    } catch (error) {
+      console.error("SupabaseQuizRepository.publish error:", error);
+      throw error;
+    }
+  }
+
   async deleteQuestion(questionId, userId) {
     try {
       // Verify ownership via join
