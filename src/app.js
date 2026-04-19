@@ -22,6 +22,8 @@ function createApp() {
   const statsRoutes = container.get("statsRoutes");
   const attemptRoutes = container.get("attemptRoutes");
   const libraryRoutes = container.get("libraryRoutes");
+  const createGamesRouter = require("./modules/games/gamesRoutes");
+  const gamesRouter = createGamesRouter();
 
   app.use(cors(config.corsOptions));
   app.use(express.json({ limit: "10mb" }));
@@ -35,6 +37,7 @@ function createApp() {
   app.use("/api/stats", statsRoutes);
   app.use("/api/attempts", attemptRoutes);
   app.use("/api/library", libraryRoutes);
+  app.use("/api/games", gamesRouter);
 
   app.use((error, req, res, next) => {
     if (error && error.code === "LIMIT_FILE_SIZE") {
