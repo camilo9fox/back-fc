@@ -215,6 +215,39 @@ class SupabaseAuthRepository {
   }
 
   /**
+   * Updates user profile (email and/or user_metadata)
+   * @param {string} userId
+   * @param {{ email?: string, metadata?: object }} updates
+   */
+  async updateUser(userId, { email, metadata } = {}) {
+    try {
+      const payload = {};
+      if (email) payload.email = email;
+      if (metadata) payload.user_metadata = metadata;
+
+      const { data, error } = await this.supabase.auth.admin.updateUserById(
+        userId,
+        payload,
+      );
+
+      if (error) {
+        console.error("Supabase updateUser error:", error);
+        throw new Error(`Error updating user: ${error.message}`);
+      }
+
+      return {
+        id: data.user.id,
+        email: data.user.email,
+        created_at: data.user.created_at,
+        metadata: data.user.user_metadata,
+      };
+    } catch (error) {
+      console.error("SupabaseAuthRepository.updateUser error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Deletes a user account and all associated data
    * @param {string} userId - User ID
    * @returns {Promise<boolean>} Success status

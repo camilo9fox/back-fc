@@ -41,6 +41,9 @@ function createQuizRouter(controller) {
   router.put("/:id", (req, res) => controller.updateQuiz(req, res));
   router.delete("/:id", (req, res) => controller.deleteQuiz(req, res));
   router.post("/:id/questions", (req, res) => controller.addQuestion(req, res));
+  router.patch("/:id/questions/:questionId", (req, res) =>
+    controller.updateQuestion(req, res),
+  );
   router.delete("/:id/questions/:questionId", (req, res) =>
     controller.deleteQuestion(req, res),
   );

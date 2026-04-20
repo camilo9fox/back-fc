@@ -1,5 +1,5 @@
 -- =============================================================
---  StudyAI  ·  Full Schema  (v4)
+--  StudyAI  ·  Full Schema  (v5)
 --  Changes from v1:
 --    · flashcards.options column removed (classic Q/A format)
 --    · flashcards.category_id is now NOT NULL
@@ -14,6 +14,9 @@
 --      - Publishing a category propagates is_public to all its content
 --      - RLS updated: own OR public content is readable
 --      - Partial indexes for efficient public-content queries
+--  Changes from v4:
+--    · NEW: flashcard_reviews table (SM-2 spaced repetition state)
+--    · NEW: game_scores table (arcade game records — Survival mode)
 -- =============================================================
 
 -- ────────────────────────────────────────────
@@ -33,6 +36,11 @@ DROP POLICY IF EXISTS "Read own or public quizzes"                   ON quizzes;
 DROP POLICY IF EXISTS "Read own or public tf sets"                   ON true_false_sets;
 DROP POLICY IF EXISTS "Read quiz questions of own or public quiz"    ON quiz_questions;
 DROP POLICY IF EXISTS "Read tf questions of own or public set"       ON true_false_questions;
+
+-- Standalone tables (no child dependencies)
+-- Policies for these are dropped automatically via CASCADE
+DROP TABLE IF EXISTS game_scores          CASCADE;
+DROP TABLE IF EXISTS flashcard_reviews    CASCADE;
 
 -- Attempt tables first (no child dependencies)
 DROP TABLE IF EXISTS quiz_attempts        CASCADE;
@@ -400,4 +408,95 @@ ALTER TABLE flashcard_sessions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can read their own fc sessions"   ON flashcard_sessions FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own fc sessions" ON flashcard_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────
+-- FLASHCARD REVIEWS  (SM-2 spaced repetition state)
+-- One row per (user, flashcard) pair.
+-- ease_factor:    SM-2 easiness factor, starts at 2.5, min 1.3
+-- interval_days:  current review interval in days
+-- repetitions:    consecutive successful reviews (resets on fail)
+-- next_review_at: timestamp of next scheduled review (NULL = new / never reviewed)
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS flashcard_reviews (
+  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  flashcard_id    UUID NOT NULL REFERENCES flashcards(id) ON DELETE CASCADE,
+  ease_factor     NUMERIC(4,2) NOT NULL DEFAULT 2.50,
+  interval_days   INTEGER NOT NULL DEFAULT 0,
+  repetitions     INTEGER NOT NULL DEFAULT 0,
+  next_review_at  TIMESTAMP WITH TIME ZONE,
+  last_reviewed_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE (user_id, flashcard_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fc_reviews_user_id       ON flashcard_reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_fc_reviews_flashcard_id  ON flashcard_reviews(flashcard_id);
+CREATE INDEX IF NOT EXISTS idx_fc_reviews_due           ON flashcard_reviews(user_id, next_review_at ASC)
+  WHERE next_review_at IS NOT NULL;
+
+ALTER TABLE flashcard_reviews ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own fc reviews"
+  ON flashcard_reviews FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own fc reviews"
+  ON flashcard_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own fc reviews"
+  ON flashcard_reviews FOR UPDATE USING (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────
+-- GAME SCORES
+-- Persists arcade game records (Survival, etc.) per user.
+-- category_id is nullable — records can span all categories.
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS game_scores (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  game_type    TEXT NOT NULL CHECK (game_type IN ('survival')),
+  category_id  UUID REFERENCES categories(id) ON DELETE SET NULL,
+  score        INTEGER NOT NULL CHECK (score >= 0),
+  completed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_scores_user_id     ON game_scores(user_id);
+CREATE INDEX IF NOT EXISTS idx_game_scores_game_type   ON game_scores(user_id, game_type);
+CREATE INDEX IF NOT EXISTS idx_game_scores_completed_at ON game_scores(user_id, completed_at DESC);
+
+ALTER TABLE game_scores ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own game scores"   ON game_scores FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own game scores" ON game_scores FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ── v4 → v5: SM-2 spaced repetition + game scores ─────────────────────
+-- (flashcard_reviews and game_scores are new tables — no ALTER needed)
+-- Run the full CREATE TABLE blocks above if upgrading from v4.
+-- =============================================================
+-- -- v5 ? v6: Persist generation jobs ----------------------------------
+-- Run this block when upgrading from v5.
+
+CREATE TABLE IF NOT EXISTS generation_jobs (
+  id          UUID    NOT NULL PRIMARY KEY,
+  user_id     UUID    NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type        TEXT    NOT NULL,
+  status      TEXT    NOT NULL DEFAULT 'queued',
+  stage       TEXT,
+  percent     INTEGER DEFAULT 0,
+  metadata    JSONB,
+  result      JSONB,
+  error       TEXT,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at  TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_generation_jobs_user_id     ON generation_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_generation_jobs_expires_at  ON generation_jobs(expires_at);
+
+ALTER TABLE generation_jobs ENABLE ROW LEVEL SECURITY;
+
+-- Jobs are accessed server-side with the service role key, so RLS is a
+-- safety net: users should never reach this table directly from the browser.
+CREATE POLICY "Users can read their own jobs"
+  ON generation_jobs FOR SELECT USING (auth.uid() = user_id);
+
+-- v5 ? v6 upgrade note
 -- =============================================================

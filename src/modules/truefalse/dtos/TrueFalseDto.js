@@ -19,7 +19,9 @@ class TrueFalseQuestionDto {
     return (
       typeof this.statement === "string" &&
       this.statement.trim().length > 0 &&
-      typeof this.isTrue === "boolean"
+      this.statement.length <= 2000 &&
+      typeof this.isTrue === "boolean" &&
+      (this.explanation === null || this.explanation.length <= 2000)
     );
   }
 }
@@ -45,8 +47,12 @@ class TrueFalseSetDto {
     return (
       typeof this.title === "string" &&
       this.title.trim().length > 0 &&
+      this.title.length <= 255 &&
       typeof this.categoryId === "string" &&
       this.categoryId.trim().length > 0 &&
+      (this.description === null ||
+        this.description === undefined ||
+        this.description.length <= 2000) &&
       Array.isArray(this.questions) &&
       this.questions.length > 0 &&
       this.questions.every(

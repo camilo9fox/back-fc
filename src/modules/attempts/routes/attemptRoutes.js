@@ -15,6 +15,8 @@ function createAttemptRouter(controller) {
   );
   router.get("/chart-data", (req, res) => controller.getChartData(req, res));
   router.get("/history", (req, res) => controller.getHistory(req, res));
+  router.post("/game", (req, res) => controller.recordGameScore(req, res));
+  router.get("/game-best", (req, res) => controller.getGameBest(req, res));
 
   return router;
 }

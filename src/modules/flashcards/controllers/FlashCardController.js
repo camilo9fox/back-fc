@@ -8,10 +8,16 @@ const {
  * Handles HTTP requests and responses for flashcard generation, creation and retrieval
  */
 class FlashCardController {
-  constructor(flashCardService, manualFlashCardService, generationJobService) {
+  constructor(
+    flashCardService,
+    manualFlashCardService,
+    generationJobService,
+    spacedRepetitionService,
+  ) {
     this.flashCardService = flashCardService;
     this.manualFlashCardService = manualFlashCardService;
     this.generationJobService = generationJobService;
+    this.spacedRepetitionService = spacedRepetitionService;
   }
 
   /**
@@ -206,6 +212,12 @@ class FlashCardController {
         });
       }
 
+      if (question.length > 2000 || answer.length > 2000) {
+        return res.status(400).json({
+          error: "question y answer no pueden superar los 2000 caracteres.",
+        });
+      }
+
       if (!categoryId) {
         return res.status(400).json({
           error:
@@ -287,6 +299,38 @@ class FlashCardController {
     }
   }
 
+  async updateFlashCard(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { id } = req.params;
+      const { question, answer } = req.body;
+      if (!question?.trim() || !answer?.trim()) {
+        return res
+          .status(400)
+          .json({ error: "Se requieren question y answer." });
+      }
+      if (question.length > 2000 || answer.length > 2000) {
+        return res.status(400).json({
+          error: "question y answer no pueden superar los 2000 caracteres.",
+        });
+      }
+      const updated = await this.manualFlashCardService.updateFlashCard(
+        id,
+        userId,
+        { question, answer },
+      );
+      if (!updated) {
+        return res.status(404).json({ error: "Flashcard no encontrada." });
+      }
+      res.json(updated);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
   async getFlashCards(req, res) {
     try {
       const userId = req.user?.id;
@@ -294,7 +338,7 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { source, limit = 10, offset = 0, categoryId } = req.query;
+      const { source, limit = 200, offset = 0, categoryId } = req.query;
 
       const filters = {
         userId, // Always filter by authenticated user
@@ -305,7 +349,7 @@ class FlashCardController {
       if (categoryId) {
         filters.categoryId = categoryId;
       }
-      filters.limit = Math.min(parseInt(limit) || 10, 100); // Max 100 per request
+      filters.limit = Math.min(parseInt(limit) || 200, 500); // Max 500 per request
       filters.offset = parseInt(offset) || 0;
 
       const flashcards = await this.manualFlashCardService.getFlashCards(
@@ -382,6 +426,104 @@ class FlashCardController {
         isPublic,
       );
       res.json(result);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  // ── Spaced Repetition ────────────────────────────────────────────────────────
+
+  /** GET /flashcards/due — cards due for review today */
+  async getDueCards(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+      const { limit, categoryId } = req.query;
+      const cards = await this.spacedRepetitionService.getDueCards(userId, {
+        limit,
+        categoryId,
+      });
+      res.json({ flashcards: cards, count: cards.length });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  /** GET /flashcards/review-stats — due/new/learned counts */
+  async getReviewStats(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+      const stats = await this.spacedRepetitionService.getReviewStats(userId);
+      res.json(stats);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  /** POST /flashcards/:id/review — submit SM-2 quality rating */
+  async submitReview(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+      const { id } = req.params;
+      const quality = parseInt(req.body.quality, 10);
+      if (!id)
+        return res.status(400).json({ error: "Flashcard ID is required" });
+      const result = await this.spacedRepetitionService.submitReview(
+        userId,
+        id,
+        quality,
+      );
+      res.json(result);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  /** GET /flashcards/search?q=&categoryId= — search by text */
+  async searchFlashCards(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+      const { q, categoryId, limit } = req.query;
+      if (!q)
+        return res
+          .status(400)
+          .json({ error: "Parámetro de búsqueda 'q' requerido" });
+      const cards = await this.spacedRepetitionService.searchFlashCards(
+        userId,
+        q,
+        categoryId || null,
+        parseInt(limit) || 50,
+      );
+      res.json({ flashcards: cards, count: cards.length });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  /** GET /flashcards/export?categoryId=&format=csv — download CSV */
+  async exportFlashCards(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+      const { categoryId } = req.query;
+      const csv = await this.spacedRepetitionService.exportToCsv(
+        userId,
+        categoryId || null,
+      );
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="flashcards.csv"',
+      );
+      res.send("\uFEFF" + csv); // BOM for Excel UTF-8 detection
     } catch (error) {
       this._handleError(error, res);
     }

@@ -35,9 +35,8 @@ class ManualFlashCardService {
           await this.categoryService.getDefaultCategory(userId);
         finalCategoryId = defaultCategory.id;
       } catch (error) {
-        console.warn(
-          "Could not find default category, creating flashcard without category:",
-          error,
+        throw new ValidationError(
+          "Se requiere una categoría para crear la flashcard.",
         );
       }
     }
@@ -126,6 +125,18 @@ class ManualFlashCardService {
     }
     await this.flashCardRepository.delete(id);
     return true;
+  }
+
+  async updateFlashCard(id, userId, { question, answer }) {
+    if (!userId) {
+      throw new ValidationError("User ID is required to update a flashcard");
+    }
+    const existing = await this.flashCardRepository.findById(id, userId);
+    if (!existing) {
+      return null;
+    }
+    const validated = this._validateFlashCardData({ question, answer });
+    return this.flashCardRepository.update(id, validated);
   }
 
   /**

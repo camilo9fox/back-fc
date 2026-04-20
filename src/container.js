@@ -82,9 +82,14 @@ class Container {
       return new DocumentProcessingService();
     });
 
-    container.register("generationJobService", () => {
+    container.register("generationJobRepository", () => {
+      const SupabaseGenerationJobRepository = require("./modules/flashcards/repositories/implementations/SupabaseGenerationJobRepository");
+      return new SupabaseGenerationJobRepository();
+    });
+
+    container.register("generationJobService", (c) => {
       const GenerationJobService = require("./modules/flashcards/services/GenerationJobService");
-      return new GenerationJobService();
+      return new GenerationJobService(c.get("generationJobRepository"));
     });
 
     container.register("flashCardService", (c) => {
@@ -101,6 +106,16 @@ class Container {
     container.register("flashCardRepository", () => {
       const SupabaseFlashCardRepository = require("./modules/flashcards/repositories/implementations/SupabaseFlashCardRepository");
       return new SupabaseFlashCardRepository();
+    });
+
+    container.register("spacedRepetitionRepository", () => {
+      const SpacedRepetitionRepository = require("./modules/flashcards/repositories/implementations/SpacedRepetitionRepository");
+      return new SpacedRepetitionRepository();
+    });
+
+    container.register("spacedRepetitionService", (c) => {
+      const SpacedRepetitionService = require("./modules/flashcards/services/SpacedRepetitionService");
+      return new SpacedRepetitionService(c.get("spacedRepetitionRepository"));
     });
 
     container.register("manualFlashCardService", (c) => {
@@ -137,6 +152,7 @@ class Container {
         c.get("flashCardService"),
         c.get("manualFlashCardService"),
         c.get("generationJobService"),
+        c.get("spacedRepetitionService"),
       );
     });
 

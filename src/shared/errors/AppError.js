@@ -39,10 +39,18 @@ class AuthenticationError extends AppError {
   }
 }
 
+/** 503 — downstream service unavailable (e.g. circuit breaker open) */
+class ServiceUnavailableError extends AppError {
+  constructor(message) {
+    super(message, 503);
+  }
+}
+
 module.exports = {
   AppError,
   ValidationError,
   NotFoundError,
   ConflictError,
   AuthenticationError,
+  ServiceUnavailableError,
 };

@@ -172,6 +172,27 @@ class TrueFalseService {
     return this.trueFalseRepository.addQuestion(setId, userId, dto);
   }
 
+  async updateQuestion(questionId, userId, data) {
+    const isTrue =
+      typeof data.isTrue !== "undefined" ? data.isTrue : data.is_true;
+    const dto = new TrueFalseQuestionDto(
+      data.statement,
+      isTrue,
+      data.explanation ?? null,
+      data.orderIndex ?? 0,
+    );
+    if (!dto.isValid()) {
+      throw new ValidationError(
+        "Invalid question data: statement and isTrue (boolean) are required",
+      );
+    }
+    return this.trueFalseRepository.updateQuestion(questionId, userId, {
+      statement: dto.statement,
+      is_true: dto.isTrue,
+      explanation: dto.explanation,
+    });
+  }
+
   async deleteQuestion(questionId, userId) {
     return this.trueFalseRepository.deleteQuestion(questionId, userId);
   }

@@ -166,6 +166,27 @@ class QuizService {
     return this.quizRepository.addQuestion(quizId, userId, dto);
   }
 
+  async updateQuestion(questionId, userId, data) {
+    const dto = new QuizQuestionDto(
+      data.question,
+      data.options,
+      data.correctAnswer ?? data.correct_answer,
+      data.explanation ?? null,
+      data.orderIndex ?? 0,
+    );
+    if (!dto.isValid()) {
+      throw new ValidationError(
+        "Invalid question data: question, options (≥2) and correctAnswer (in options) are required",
+      );
+    }
+    return this.quizRepository.updateQuestion(questionId, userId, {
+      question: dto.question,
+      options: dto.options,
+      correct_answer: dto.correctAnswer,
+      explanation: dto.explanation,
+    });
+  }
+
   async deleteQuestion(questionId, userId) {
     return this.quizRepository.deleteQuestion(questionId, userId);
   }

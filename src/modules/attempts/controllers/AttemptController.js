@@ -110,6 +110,41 @@ class AttemptController {
     }
   }
 
+  async recordGameScore(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { game_type, category_id, score } = req.body;
+      const result = await this.attemptService.recordGameScore(userId, {
+        gameType: game_type,
+        categoryId: category_id ?? null,
+        score,
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async getGameBest(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const { gameType, categoryId } = req.query;
+      const result = await this.attemptService.getGameBest(userId, {
+        gameType,
+        categoryId: categoryId ?? null,
+      });
+      res.status(200).json(result ?? { score: 0 });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
   _handleError(error, res) {
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });

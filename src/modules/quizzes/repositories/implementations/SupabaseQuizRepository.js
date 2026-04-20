@@ -158,7 +158,7 @@ class SupabaseQuizRepository extends IQuizRepository {
 
       const { count } = await this.supabase
         .from("quiz_questions")
-        .select("*", { count: "exact", head: true })
+        .select("*", { count: "exact", head: false })
         .eq("quiz_id", quizId);
 
       const { data, error } = await this.supabase
@@ -205,6 +205,41 @@ class SupabaseQuizRepository extends IQuizRepository {
       return data;
     } catch (error) {
       console.error("SupabaseQuizRepository.publish error:", error);
+      throw error;
+    }
+  }
+
+  async updateQuestion(questionId, userId, data) {
+    try {
+      // Verify ownership via join
+      const { data: existing, error: fetchError } = await this.supabase
+        .from("quiz_questions")
+        .select("*, quizzes!inner(user_id)")
+        .eq("id", questionId)
+        .eq("quizzes.user_id", userId)
+        .single();
+
+      if (fetchError || !existing)
+        throw new NotFoundError("Question not found or access denied");
+
+      const fields = {};
+      if (data.question !== undefined) fields.question = data.question;
+      if (data.options !== undefined) fields.options = data.options;
+      if (data.correct_answer !== undefined)
+        fields.correct_answer = data.correct_answer;
+      if (data.explanation !== undefined) fields.explanation = data.explanation;
+
+      const { data: updated, error } = await this.supabase
+        .from("quiz_questions")
+        .update(fields)
+        .eq("id", questionId)
+        .select()
+        .single();
+
+      if (error) throw new Error(`Error updating question: ${error.message}`);
+      return updated;
+    } catch (error) {
+      console.error("SupabaseQuizRepository.updateQuestion error:", error);
       throw error;
     }
   }

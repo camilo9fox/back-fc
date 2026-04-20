@@ -25,6 +25,19 @@ class SupabaseAttemptRepository extends IAttemptRepository {
     score,
     totalQuestions,
   }) {
+    // If a quizId is provided, verify totalQuestions doesn't exceed the actual count
+    if (quizId) {
+      const { count, error: countErr } = await this.supabase
+        .from("quiz_questions")
+        .select("id", { count: "exact", head: true })
+        .eq("quiz_id", quizId);
+      if (!countErr && count !== null && totalQuestions > count) {
+        throw new Error(
+          `total_questions (${totalQuestions}) exceeds the actual number of questions in the quiz (${count})`,
+        );
+      }
+    }
+
     const { data, error } = await this.supabase
       .from("quiz_attempts")
       .insert({
@@ -452,6 +465,61 @@ class SupabaseAttemptRepository extends IAttemptRepository {
     }
 
     return streak;
+  }
+
+  // ─── Game scores ──────────────────────────────────────────────────────────
+
+  async createGameScore({ userId, gameType, categoryId, score }) {
+    const { data, error } = await this.supabase
+      .from("game_scores")
+      .insert({
+        user_id: userId,
+        game_type: gameType,
+        category_id: categoryId ?? null,
+        score,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Error saving game score: ${error.message}`);
+    return data;
+  }
+
+  async getGameBest({ userId, gameType, categoryId }) {
+    let query = this.supabase
+      .from("game_scores")
+      .select("score, completed_at")
+      .eq("user_id", userId)
+      .eq("game_type", gameType)
+      .order("score", { ascending: false })
+      .limit(1);
+
+    if (categoryId) {
+      query = query.eq("category_id", categoryId);
+    } else {
+      query = query.is("category_id", null);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Error fetching game best: ${error.message}`);
+    return data?.[0] ?? null;
+  }
+
+  async getGameLeaderboard({ gameType, categoryId, limit = 10 }) {
+    let query = this.supabase
+      .from("game_scores")
+      .select("user_id, score, completed_at")
+      .eq("game_type", gameType)
+      .order("score", { ascending: false })
+      .limit(limit);
+
+    if (categoryId) {
+      query = query.eq("category_id", categoryId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Error fetching leaderboard: ${error.message}`);
+    return data ?? [];
   }
 }
 

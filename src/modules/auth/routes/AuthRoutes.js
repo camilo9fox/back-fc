@@ -1,6 +1,10 @@
 const express = require("express");
 const AuthController = require("../controllers/AuthController");
 const { authMiddleware } = require("../../../shared/middleware/auth");
+const {
+  authLimiter,
+  resetPasswordLimiter,
+} = require("../../../shared/middleware/rateLimiter");
 
 /**
  * Routes for authentication endpoints
@@ -18,11 +22,17 @@ class AuthRoutes {
     // Public routes (no authentication required)
     this.router.post(
       "/signup",
+      authLimiter,
       this.authController.signUp.bind(this.authController),
     );
     this.router.post(
       "/signin",
+      authLimiter,
       this.authController.signIn.bind(this.authController),
+    );
+    this.router.post(
+      "/refresh",
+      this.authController.refresh.bind(this.authController),
     );
     this.router.get(
       "/oauth/:provider",
@@ -34,6 +44,7 @@ class AuthRoutes {
     );
     this.router.post(
       "/reset-password",
+      resetPasswordLimiter,
       this.authController.resetPassword.bind(this.authController),
     );
 
@@ -47,6 +58,11 @@ class AuthRoutes {
       "/profile",
       authMiddleware,
       this.authController.getProfile.bind(this.authController),
+    );
+    this.router.put(
+      "/profile",
+      authMiddleware,
+      this.authController.updateProfile.bind(this.authController),
     );
     this.router.put(
       "/password",

@@ -218,6 +218,38 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
     }
   }
 
+  async updateQuestion(questionId, userId, data) {
+    try {
+      const { data: existing, error: fetchError } = await this.supabase
+        .from("true_false_questions")
+        .select("*, true_false_sets!inner(user_id)")
+        .eq("id", questionId)
+        .eq("true_false_sets.user_id", userId)
+        .single();
+
+      if (fetchError || !existing)
+        throw new NotFoundError("Question not found or access denied");
+
+      const fields = {};
+      if (data.statement !== undefined) fields.statement = data.statement;
+      if (data.is_true !== undefined) fields.is_true = data.is_true;
+      if (data.explanation !== undefined) fields.explanation = data.explanation;
+
+      const { data: updated, error } = await this.supabase
+        .from("true_false_questions")
+        .update(fields)
+        .eq("id", questionId)
+        .select()
+        .single();
+
+      if (error) throw new Error(`Error updating question: ${error.message}`);
+      return updated;
+    } catch (error) {
+      console.error("SupabaseTrueFalseRepository.updateQuestion error:", error);
+      throw error;
+    }
+  }
+
   async deleteQuestion(questionId, userId) {
     try {
       const { data: question, error: fetchError } = await this.supabase

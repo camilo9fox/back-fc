@@ -7,15 +7,20 @@ const config = require("../config/config");
  */
 const authMiddleware = async (req, res, next) => {
   try {
+    // Accept token from Authorization header OR httpOnly accessToken cookie
+    let token = null;
     const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
+    } else if (req.cookies?.accessToken) {
+      token = req.cookies.accessToken;
+    }
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!token) {
       return res.status(401).json({
         error: "Token de acceso requerido",
       });
     }
-
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     try {
       const decoded = jwt.verify(token, config.jwt.secret);

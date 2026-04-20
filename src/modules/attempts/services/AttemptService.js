@@ -101,6 +101,43 @@ class AttemptService {
     return this.attemptRepository.getHistory(userId, filters);
   }
 
+  // ─── Game scores ─────────────────────────────────────────────────────────
+
+  /**
+   * Persists a game score for a user.
+   * @param {string} userId
+   * @param {{ gameType: string, categoryId?: string, score: number }} dto
+   */
+  async recordGameScore(userId, { gameType, categoryId, score }) {
+    if (!gameType || !Number.isInteger(score) || score < 0) {
+      const { AppError } = require("../../../shared/errors/AppError");
+      throw new AppError("Invalid game score data", 400);
+    }
+    return this.attemptRepository.createGameScore({
+      userId,
+      gameType,
+      categoryId: categoryId ?? null,
+      score,
+    });
+  }
+
+  /**
+   * Returns the personal best score for a game type/category.
+   * @param {string} userId
+   * @param {{ gameType: string, categoryId?: string }} params
+   */
+  async getGameBest(userId, { gameType, categoryId }) {
+    if (!gameType) {
+      const { AppError } = require("../../../shared/errors/AppError");
+      throw new AppError("gameType is required", 400);
+    }
+    return this.attemptRepository.getGameBest({
+      userId,
+      gameType,
+      categoryId: categoryId ?? null,
+    });
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
 
   _validateScore(score, totalQuestions) {

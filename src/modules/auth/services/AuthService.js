@@ -1,10 +1,27 @@
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const config = require("../../../shared/config/config");
+const logger = require("../../../shared/config/logger");
 const {
   ValidationError,
   ConflictError,
   NotFoundError,
 } = require("../../../shared/errors/AppError");
+
+// In-memory blocklist for revoked refresh tokens.
+// Map<tokenHash, expiresAtMs> — entries are pruned every 30 min so the map
+// never grows unboundedly. Resets on server restart (acceptable for our scale).
+const revokedRefreshTokens = new Map();
+
+// Prune expired entries every 30 minutes
+const BLOCKLIST_PRUNE_INTERVAL = 30 * 60 * 1000;
+const pruneBlocklist = () => {
+  const now = Date.now();
+  for (const [hash, expiresAt] of revokedRefreshTokens) {
+    if (expiresAt <= now) revokedRefreshTokens.delete(hash);
+  }
+};
+setInterval(pruneBlocklist, BLOCKLIST_PRUNE_INTERVAL).unref();
 
 /**
  * Service for authentication business logic
@@ -54,15 +71,16 @@ class AuthService {
         // Don't fail registration if category creation fails
       }
 
-      // Generate JWT token
-      const token = this._generateToken(result.user);
+      // Generate JWT access + refresh tokens
+      const { accessToken, refreshToken } = this._generateTokens(result.user);
 
       return {
         user: result.user,
-        token,
+        token: accessToken,
+        refreshToken,
       };
     } catch (error) {
-      console.error("AuthService.signUp error:", error);
+      logger.error("AuthService.signUp error:", error);
       throw error;
     }
   }
@@ -84,15 +102,16 @@ class AuthService {
       // Sign in with Supabase
       const result = await this.authRepository.signIn(email, password);
 
-      // Generate JWT token
-      const token = this._generateToken(result.user);
+      // Generate JWT access + refresh tokens
+      const { accessToken, refreshToken } = this._generateTokens(result.user);
 
       return {
         user: result.user,
-        token,
+        token: accessToken,
+        refreshToken,
       };
     } catch (error) {
-      console.error("AuthService.signIn error:", error);
+      logger.error("AuthService.signIn error:", error);
       throw error;
     }
   }
@@ -174,6 +193,31 @@ class AuthService {
   }
 
   /**
+   * Updates user profile (name and/or email)
+   * @param {string} userId
+   * @param {{ name?: string, email?: string }} fields
+   */
+  async updateProfile(userId, { name, email } = {}) {
+    try {
+      if (!userId) throw new ValidationError("User ID is required");
+
+      const updates = {};
+      if (email) {
+        this._validateEmail(email);
+        updates.email = email;
+      }
+      if (name !== undefined) {
+        updates.metadata = { full_name: name };
+      }
+
+      return await this.authRepository.updateUser(userId, updates);
+    } catch (error) {
+      logger.error("AuthService.updateProfile error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Updates user password
    * @param {string} userId - User ID
    * @param {string} currentPassword - Current password for verification
@@ -250,7 +294,96 @@ class AuthService {
   }
 
   /**
-   * Generates a JWT token for a user
+   * Generates both access and refresh tokens for a user.
+   * @param {Object} user - User data
+   * @returns {{ accessToken: string, refreshToken: string }}
+   */
+  _generateTokens(user) {
+    const accessToken = jwt.sign(
+      { userId: user.id, email: user.email },
+      config.jwt.secret,
+      { expiresIn: config.jwt.expiresIn },
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: user.id },
+      config.jwt.refreshSecret,
+      { expiresIn: config.jwt.refreshExpiresIn },
+    );
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Refreshes the access token using a valid refresh token.
+   * Rotates the refresh token (old one is revoked, new one issued).
+   * @param {string} refreshToken - The current refresh token
+   * @returns {{ accessToken: string, refreshToken: string, user: Object }}
+   */
+  async refreshSession(refreshToken) {
+    if (!refreshToken) {
+      throw new ValidationError("Refresh token is required");
+    }
+
+    // Check if this refresh token was explicitly revoked (logout)
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(refreshToken)
+      .digest("hex");
+    const revokedEntry = revokedRefreshTokens.get(tokenHash);
+    if (revokedEntry && revokedEntry > Date.now()) {
+      throw new ValidationError("Refresh token has been revoked");
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, config.jwt.refreshSecret);
+    } catch (error) {
+      throw new ValidationError("Invalid or expired refresh token");
+    }
+
+    // Verify the user still exists
+    const user = await this.authRepository.getUserById(decoded.userId);
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
+
+    // Revoke the old refresh token (rotation) — store with its expiry time
+    const expiresAtMs = decoded.exp
+      ? decoded.exp * 1000
+      : Date.now() + 7 * 24 * 60 * 60 * 1000;
+    revokedRefreshTokens.set(tokenHash, expiresAtMs);
+
+    // Generate new token pair
+    return { ...this._generateTokens(user), user };
+  }
+
+  /**
+   * Revokes a refresh token (called on logout).
+   * @param {string} refreshToken - Refresh token to revoke
+   */
+  revokeRefreshToken(refreshToken) {
+    if (!refreshToken) return;
+    let decoded;
+    try {
+      // We decode without verification just to get the expiry time for the TTL
+      decoded = jwt.decode(refreshToken);
+    } catch {
+      decoded = null;
+    }
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(refreshToken)
+      .digest("hex");
+    // Store with the token's own expiry so the blocklist entry is pruned naturally
+    const expiresAtMs = decoded?.exp
+      ? decoded.exp * 1000
+      : Date.now() + 7 * 24 * 60 * 60 * 1000;
+    revokedRefreshTokens.set(tokenHash, expiresAtMs);
+  }
+
+  /**
+   * Generates a JWT token for a user (legacy — prefer _generateTokens)
    * @param {Object} user - User data
    * @returns {string} JWT token
    */

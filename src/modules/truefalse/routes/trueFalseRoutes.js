@@ -41,6 +41,9 @@ function createTrueFalseRouter(controller) {
   router.put("/:id", (req, res) => controller.updateSet(req, res));
   router.delete("/:id", (req, res) => controller.deleteSet(req, res));
   router.post("/:id/questions", (req, res) => controller.addQuestion(req, res));
+  router.patch("/:id/questions/:questionId", (req, res) =>
+    controller.updateQuestion(req, res),
+  );
   router.delete("/:id/questions/:questionId", (req, res) =>
     controller.deleteQuestion(req, res),
   );

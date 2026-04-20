@@ -27,12 +27,17 @@ class QuizQuestionDto {
     return (
       typeof this.question === "string" &&
       this.question.trim().length > 0 &&
+      this.question.length <= 2000 &&
       Array.isArray(this.options) &&
       this.options.length >= 2 &&
-      this.options.every((o) => typeof o === "string" && o.trim().length > 0) &&
+      this.options.length <= 6 &&
+      this.options.every(
+        (o) => typeof o === "string" && o.trim().length > 0 && o.length <= 500,
+      ) &&
       typeof this.correctAnswer === "string" &&
       this.correctAnswer.trim().length > 0 &&
-      this.options.includes(this.correctAnswer)
+      this.options.includes(this.correctAnswer) &&
+      (this.explanation === null || this.explanation.length <= 2000)
     );
   }
 }
@@ -58,8 +63,12 @@ class QuizDto {
     return (
       typeof this.title === "string" &&
       this.title.trim().length > 0 &&
+      this.title.length <= 255 &&
       typeof this.categoryId === "string" &&
       this.categoryId.trim().length > 0 &&
+      (this.description === null ||
+        this.description === undefined ||
+        this.description.length <= 2000) &&
       Array.isArray(this.questions) &&
       this.questions.length > 0 &&
       this.questions.every((q) => q instanceof QuizQuestionDto && q.isValid())

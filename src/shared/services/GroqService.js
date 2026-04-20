@@ -1,4 +1,10 @@
 ﻿const { Groq } = require("groq-sdk");
+const logger = require("../config/logger");
+
+// Circuit breaker states
+const CB_CLOSED = "CLOSED"; // Normal operation
+const CB_OPEN = "OPEN"; // Failing — reject calls immediately
+const CB_HALF_OPEN = "HALF_OPEN"; // Testing if service recovered
 
 class GroqService {
   constructor(apiKey) {
@@ -7,6 +13,60 @@ class GroqService {
     this.qualityModel =
       process.env.GROQ_QUALITY_MODEL || "llama-3.3-70b-versatile";
     this.MAX_GENERATION_ATTEMPTS = 3;
+
+    // Circuit breaker state
+    this._cb = {
+      state: CB_CLOSED,
+      failures: 0,
+      lastFailureAt: null,
+      FAILURE_THRESHOLD: 5, // failures before opening
+      COOLDOWN_MS: 60_000, // 1 min open before trying again
+    };
+  }
+
+  // ── Circuit breaker helpers ─────────────────────────────────────────────────
+  _cbIsOpen() {
+    const cb = this._cb;
+    if (cb.state === CB_OPEN) {
+      const elapsed = Date.now() - cb.lastFailureAt;
+      if (elapsed >= cb.COOLDOWN_MS) {
+        cb.state = CB_HALF_OPEN;
+        logger.info(
+          "GroqService circuit breaker: HALF_OPEN — probando recuperación",
+        );
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  _cbRecordSuccess() {
+    const cb = this._cb;
+    if (cb.state !== CB_CLOSED) {
+      logger.info("GroqService circuit breaker: CLOSED — servicio recuperado");
+    }
+    cb.state = CB_CLOSED;
+    cb.failures = 0;
+    cb.lastFailureAt = null;
+  }
+
+  _cbRecordFailure(error) {
+    const cb = this._cb;
+    // Don't trip the breaker on rate-limit (429) or client errors — only on
+    // server errors and network failures that indicate Groq is unavailable.
+    const is429 = error?.status === 429 || error?.message?.includes("429");
+    const isClientError = error?.status >= 400 && error?.status < 500 && !is429;
+    if (isClientError) return;
+
+    cb.failures += 1;
+    cb.lastFailureAt = Date.now();
+    if (cb.failures >= cb.FAILURE_THRESHOLD && cb.state === CB_CLOSED) {
+      cb.state = CB_OPEN;
+      logger.warn(
+        `GroqService circuit breaker: OPEN después de ${cb.failures} fallos. Cooldown ${cb.COOLDOWN_MS / 1000}s.`,
+      );
+    }
   }
 
   async createChatCompletion({
@@ -16,18 +76,27 @@ class GroqService {
     fallbackModel,
     ...options
   }) {
+    // Fail fast if circuit is open
+    if (this._cbIsOpen()) {
+      throw new Error(
+        "El servicio de IA no está disponible temporalmente. Por favor inténtalo en unos minutos.",
+      );
+    }
+
     const models = [preferredModel, fallbackModel].filter(Boolean);
     let lastError = null;
     for (const model of models) {
       // Retry up to 3 times on 429 rate-limit errors with backoff
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          return await this.groq.chat.completions.create({
+          const result = await this.groq.chat.completions.create({
             messages,
             model,
             ...(responseFormat ? { response_format: responseFormat } : {}),
             ...options,
           });
+          this._cbRecordSuccess();
+          return result;
         } catch (error) {
           const is429 =
             error?.status === 429 ||
@@ -41,7 +110,7 @@ class GroqService {
           const waitMs = retryMatch
             ? Math.ceil(parseFloat(retryMatch[1]) * 1000) + 200
             : (attempt + 1) * 3000;
-          console.warn(
+          logger.warn(
             `Groq rate limit (${model}, attempt ${attempt + 1}/3). Retrying in ${waitMs}ms...`,
           );
           await new Promise((resolve) => setTimeout(resolve, waitMs));
@@ -49,6 +118,7 @@ class GroqService {
       }
       if (lastError === null) break; // success on this model
     }
+    this._cbRecordFailure(lastError);
     throw lastError;
   }
 
@@ -57,9 +127,7 @@ class GroqService {
       throw new Error("La respuesta del modelo llego vacia.");
     }
     const trimmed = content.trim();
-    const fencedMatch = trimmed.match(
-      / + '`' + (?:json)?\s*([\s\S]*?) + '`' + /i,
-    );
+    const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
     const candidate = fencedMatch ? fencedMatch[1].trim() : trimmed;
     try {
       return JSON.parse(candidate);

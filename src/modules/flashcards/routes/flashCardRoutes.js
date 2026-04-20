@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const config = require("../../../shared/config/config");
 const { authMiddleware } = require("../../../shared/middleware/auth");
+const { perUserApiLimiter } = require("../../../shared/middleware/rateLimiter");
 
 function createFlashCardRouter(flashCardController) {
   const router = express.Router();
@@ -28,6 +29,7 @@ function createFlashCardRouter(flashCardController) {
   router.post(
     "/generate-flashcard",
     authMiddleware,
+    perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCard(req, res),
   );
@@ -35,6 +37,7 @@ function createFlashCardRouter(flashCardController) {
   router.post(
     "/generate-flashcards",
     authMiddleware,
+    perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCards(req, res),
   );
@@ -42,6 +45,7 @@ function createFlashCardRouter(flashCardController) {
   router.post(
     "/generate-flashcards-async",
     authMiddleware,
+    perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCardsAsync(req, res),
   );
@@ -62,8 +66,33 @@ function createFlashCardRouter(flashCardController) {
     flashCardController.createManualFlashCards(req, res),
   );
 
+  // Spaced repetition endpoints (must be before /:id to avoid route collision)
+  router.get("/due", authMiddleware, (req, res) =>
+    flashCardController.getDueCards(req, res),
+  );
+
+  router.get("/review-stats", authMiddleware, (req, res) =>
+    flashCardController.getReviewStats(req, res),
+  );
+
+  router.get("/search", authMiddleware, (req, res) =>
+    flashCardController.searchFlashCards(req, res),
+  );
+
+  router.get("/export", authMiddleware, (req, res) =>
+    flashCardController.exportFlashCards(req, res),
+  );
+
+  router.post("/:id/review", authMiddleware, (req, res) =>
+    flashCardController.submitReview(req, res),
+  );
+
   router.get("/", authMiddleware, (req, res) =>
     flashCardController.getFlashCards(req, res),
+  );
+
+  router.patch("/:id", authMiddleware, (req, res) =>
+    flashCardController.updateFlashCard(req, res),
   );
 
   router.delete("/:id", authMiddleware, (req, res) =>

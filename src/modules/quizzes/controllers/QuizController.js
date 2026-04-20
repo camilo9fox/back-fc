@@ -101,6 +101,23 @@ class QuizController {
     }
   }
 
+  async updateQuestion(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId)
+        return res.status(401).json({ error: "Authentication required" });
+
+      const question = await this.quizService.updateQuestion(
+        req.params.questionId,
+        userId,
+        req.body,
+      );
+      res.json(question);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
   async deleteQuestion(req, res) {
     try {
       const userId = req.user?.id;
