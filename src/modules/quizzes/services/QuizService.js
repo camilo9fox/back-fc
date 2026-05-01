@@ -99,8 +99,27 @@ class QuizService {
 
     report("Generando preguntas", 78);
 
+    // Fetch existing questions in the same category for deduplication
+    let existingQuestions = [];
+    try {
+      const existing = await this.quizRepository.findAllByUser(userId, {
+        categoryId,
+        limit: 50,
+      });
+      existingQuestions = existing.flatMap((q) => q.questions || []) || [];
+      console.log(
+        `QuizService: loaded ${existingQuestions.length} existing questions from category ${categoryId}`,
+      );
+    } catch (error) {
+      console.warn(
+        `QuizService: failed to fetch existing questions: ${error.message}`,
+      );
+      // Don't fail the generation if we can't fetch existing ones
+    }
+
     const rawQuestions = await this.groqService.generateQuizQuestions(
       content,
+      existingQuestions,
       quantity,
     );
 

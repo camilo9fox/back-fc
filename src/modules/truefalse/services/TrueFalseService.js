@@ -101,8 +101,27 @@ class TrueFalseService {
 
     report("Generando afirmaciones", 78);
 
+    // Fetch existing statements in the same category for deduplication
+    let existingStatements = [];
+    try {
+      const existing = await this.trueFalseRepository.findAllByUser(userId, {
+        categoryId,
+        limit: 50,
+      });
+      existingStatements = existing.flatMap((s) => s.questions || []) || [];
+      console.log(
+        `TrueFalseService: loaded ${existingStatements.length} existing statements from category ${categoryId}`,
+      );
+    } catch (error) {
+      console.warn(
+        `TrueFalseService: failed to fetch existing statements: ${error.message}`,
+      );
+      // Don't fail the generation if we can't fetch existing ones
+    }
+
     const rawStatements = await this.groqService.generateTrueFalseStatements(
       content,
+      existingStatements,
       quantity,
     );
 

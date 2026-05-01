@@ -1,4 +1,5 @@
 const GroqService = require("./GroqService");
+const TextDeduplication = require("../utils/TextDeduplication");
 
 /**
  * Service for AI-based true/false statement generation using Groq.
@@ -98,7 +99,15 @@ REGLAS OBLIGATORIAS:
     }
   }
 
-  buildTrueFalseGenerationMessages(content, quantity) {
+  buildTrueFalseGenerationMessages(content, quantity, excluded = []) {
+    const excludedBlock =
+      excluded.length > 0
+        ? `\n\nAFIRMACIONES PROHIBIDAS (no repetir):\n${excluded
+            .slice(0, 20)
+            .map((statement, index) => `${index + 1}. ${statement}`)
+            .join("\n")}`
+        : "";
+
     return [
       {
         role: "system",
@@ -118,7 +127,7 @@ REGLAS OBLIGATORIAS:
       },
       {
         role: "user",
-        content: `Material de estudio:\n${content}\n\nGenera ${quantity} afirmaciones de verdadero o falso basadas en el contenido academico.\n\nDevuelve el JSON con esta forma exacta:\n{"questions":[{"statement":"...","is_true":true,"explanation":"..."}]}`,
+        content: `Material de estudio:\n${content}\n\nGenera ${quantity} afirmaciones de verdadero o falso basadas en el contenido academico.${excludedBlock}\n\nIMPORTANTE: ignora cualquier metadato editorial o bibliografico si aparece en el texto.\n\nDevuelve el JSON con esta forma exacta:\n{"questions":[{"statement":"...","is_true":true,"explanation":"..."}]}`,
       },
     ];
   }
@@ -156,13 +165,23 @@ REGLAS OBLIGATORIAS:
     return normalized;
   }
 
-  async generateTrueFalseStatements(content, quantity = 10) {
+  async generateTrueFalseStatements(
+    content,
+    existingStatements = [],
+    quantity = 10,
+  ) {
     console.log(
-      `TrueFalseGenerationService: generateTrueFalseStatements model=${this.qualityModel}, quantity=${quantity}`,
+      `TrueFalseGenerationService: generateTrueFalseStatements model=${this.qualityModel}, quantity=${quantity}, existingStatements=${existingStatements.length}`,
     );
 
     const collected = [];
     const seenStatements = new Set();
+
+    // Extract statement texts from existing statements (max 20 to avoid prompt bloat)
+    const existingStatementTexts = existingStatements
+      .slice(0, 20)
+      .map((s) => s.statement || s)
+      .filter(Boolean);
 
     for (
       let attempt = 1;
@@ -171,11 +190,15 @@ REGLAS OBLIGATORIAS:
     ) {
       const remaining = quantity - collected.length;
       const requestQuantity = Math.min(remaining + 2, 5);
+      const excluded = Array.from(seenStatements).concat(
+        existingStatementTexts,
+      );
 
       const response = await this.createChatCompletion({
         messages: this.buildTrueFalseGenerationMessages(
           content,
           requestQuantity,
+          excluded,
         ),
         preferredModel: this.qualityModel,
         fallbackModel: this.fastModel,
@@ -206,6 +229,19 @@ REGLAS OBLIGATORIAS:
       for (const item of batch) {
         const key = item.statement.toLowerCase();
         if (seenStatements.has(key)) continue;
+
+        // Additional deduplication check against existing statements
+        if (
+          existingStatementTexts.some((existing) =>
+            TextDeduplication.isSimilar(item.statement, existing, 70),
+          )
+        ) {
+          console.debug(
+            `TrueFalseGenerationService: descartada afirmación similar a existente: "${item.statement}"`,
+          );
+          continue;
+        }
+
         seenStatements.add(key);
         collected.push(item);
         if (collected.length >= quantity) break;

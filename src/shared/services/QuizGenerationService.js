@@ -1,4 +1,5 @@
 const GroqService = require("./GroqService");
+const TextDeduplication = require("../utils/TextDeduplication");
 
 /**
  * Service for AI-based quiz generation using Groq.
@@ -98,7 +99,15 @@ REGLAS OBLIGATORIAS:
     }
   }
 
-  buildQuizGenerationMessages(content, quantity) {
+  buildQuizGenerationMessages(content, quantity, excluded = []) {
+    const excludedBlock =
+      excluded.length > 0
+        ? `\n\nPREGUNTAS PROHIBIDAS (no repetir):\n${excluded
+            .slice(0, 20)
+            .map((question, index) => `${index + 1}. ${question}`)
+            .join("\n")}`
+        : "";
+
     return [
       {
         role: "system",
@@ -118,7 +127,7 @@ REGLAS OBLIGATORIAS:
       },
       {
         role: "user",
-        content: `Material de estudio:\n${content}\n\nGenera ${quantity} preguntas de multiple opcion distintas basadas en el contenido academico.\n\nDevuelve el JSON con esta forma exacta:\n{"questions":[{"question":"...","options":["A","B","C","D"],"correct_answer":"A","explanation":"..."}]}`,
+        content: `Material de estudio:\n${content}\n\nGenera ${quantity} preguntas de multiple opcion distintas basadas en el contenido academico.${excludedBlock}\n\nIMPORTANTE: ignora cualquier metadato editorial o bibliografico si aparece en el texto.\n\nDevuelve el JSON con esta forma exacta:\n{"questions":[{"question":"...","options":["A","B","C","D"],"correct_answer":"A","explanation":"..."}]}`,
       },
     ];
   }
@@ -179,13 +188,19 @@ REGLAS OBLIGATORIAS:
     return normalized;
   }
 
-  async generateQuizQuestions(content, quantity = 5) {
+  async generateQuizQuestions(content, existingQuestions = [], quantity = 5) {
     console.log(
-      `QuizGenerationService: generateQuizQuestions model=${this.qualityModel}, quantity=${quantity}`,
+      `QuizGenerationService: generateQuizQuestions model=${this.qualityModel}, quantity=${quantity}, existingQuestions=${existingQuestions.length}`,
     );
 
     const collected = [];
     const seenQuestions = new Set();
+
+    // Extract question texts from existing questions (max 20 to avoid prompt bloat)
+    const existingQuestionTexts = existingQuestions
+      .slice(0, 20)
+      .map((q) => q.question || q)
+      .filter(Boolean);
 
     for (
       let attempt = 1;
@@ -194,9 +209,14 @@ REGLAS OBLIGATORIAS:
     ) {
       const remaining = quantity - collected.length;
       const requestQuantity = Math.min(remaining + 2, 5);
+      const excluded = Array.from(seenQuestions).concat(existingQuestionTexts);
 
       const response = await this.createChatCompletion({
-        messages: this.buildQuizGenerationMessages(content, requestQuantity),
+        messages: this.buildQuizGenerationMessages(
+          content,
+          requestQuantity,
+          excluded,
+        ),
         preferredModel: this.qualityModel,
         fallbackModel: this.fastModel,
         temperature: attempt === 1 ? 0.55 : 0.7,
@@ -231,6 +251,19 @@ REGLAS OBLIGATORIAS:
       for (const item of batch) {
         const key = item.question.toLowerCase();
         if (seenQuestions.has(key)) continue;
+
+        // Additional deduplication check against existing questions
+        if (
+          existingQuestionTexts.some((existing) =>
+            TextDeduplication.isSimilar(item.question, existing, 70),
+          )
+        ) {
+          console.debug(
+            `QuizGenerationService: descartada pregunta similar a existente: "${item.question}"`,
+          );
+          continue;
+        }
+
         seenQuestions.add(key);
         collected.push(item);
         if (collected.length >= quantity) break;

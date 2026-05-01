@@ -29,6 +29,7 @@ class FlashCardController {
     const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
     const file = req.file || null;
     const quantity = Number.parseInt(req.body.quantity, 10) || 1;
+    const categoryId = req.body.categoryId || null;
 
     if (!file && !text) {
       throw new ValidationError(
@@ -36,7 +37,7 @@ class FlashCardController {
       );
     }
 
-    return { file, text, quantity };
+    return { file, text, quantity, categoryId };
   }
 
   /**
@@ -51,13 +52,14 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { file, text } = this._validateAndExtractInput(req);
+      const { file, text, categoryId } = this._validateAndExtractInput(req);
 
       const flashCard = await this.flashCardService.processInput({
         file,
         text,
         quantity: 1,
         userId,
+        categoryId,
       });
 
       res.json(flashCard[0]); // Return single flashcard
@@ -73,13 +75,15 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { file, text, quantity } = this._validateAndExtractInput(req);
+      const { file, text, quantity, categoryId } =
+        this._validateAndExtractInput(req);
 
       const flashCards = await this.flashCardService.processInput({
         file,
         text,
         quantity,
         userId,
+        categoryId,
       });
 
       res.json(flashCards);
@@ -95,7 +99,8 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { file, text, quantity } = this._validateAndExtractInput(req);
+      const { file, text, quantity, categoryId } =
+        this._validateAndExtractInput(req);
       const job = this.generationJobService.createJob({
         userId,
         type: "flashcard-generation",
@@ -127,6 +132,7 @@ class FlashCardController {
             text,
             quantity,
             userId,
+            categoryId,
             onProgress: (progress) => {
               this.generationJobService.updateJob(job.id, userId, {
                 status: "processing",

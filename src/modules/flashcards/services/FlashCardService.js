@@ -40,9 +40,17 @@ class FlashCardService {
    * @param {Object|null} params.file - Uploaded file object
    * @param {string} params.text - Optional plain text content
    * @param {string} params.userId - User ID (required)
+   * @param {string} [params.categoryId] - Category ID for deduplication
    * @returns {Promise<Object>} Validated flashcard data
    */
-  async processInput({ file, text, quantity = 1, userId, onProgress }) {
+  async processInput({
+    file,
+    text,
+    quantity = 1,
+    userId,
+    categoryId,
+    onProgress,
+  }) {
     if (!userId) {
       throw new ValidationError("User ID is required to generate flashcards");
     }
@@ -104,10 +112,32 @@ class FlashCardService {
       `FlashCardService: contenido final enviado a Groq=${processedContent.length} caracteres`,
     );
 
+    // Fetch existing flashcards in the same category for deduplication
+    let existingQuestions = [];
+    if (categoryId) {
+      try {
+        const existing = await this.flashCardRepository.findAll({
+          userId,
+          categoryId,
+          limit: 50, // Fetch more than we'll use, in case of duplicates
+        });
+        existingQuestions = existing || [];
+        console.log(
+          `FlashCardService: loaded ${existingQuestions.length} existing flashcards from category ${categoryId}`,
+        );
+      } catch (error) {
+        console.warn(
+          `FlashCardService: failed to fetch existing questions: ${error.message}`,
+        );
+        // Don't fail the generation if we can't fetch existing ones
+      }
+    }
+
     this.reportProgress(onProgress, "Generando flashcards", 82);
 
     const flashCardDataArray = await this.groqService.generateFlashCards(
       processedContent,
+      existingQuestions,
       quantity,
     );
     const truncatedFlashCardDataArray = flashCardDataArray.slice(0, quantity);

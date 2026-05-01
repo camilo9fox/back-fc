@@ -1,4 +1,5 @@
 const GroqService = require("./GroqService");
+const TextDeduplication = require("../utils/TextDeduplication");
 
 /**
  * Service for AI-based flashcard generation using Groq.
@@ -93,13 +94,23 @@ REGLAS OBLIGATORIAS:
     return normalized;
   }
 
-  async generateFlashCards(documentContent, quantity = 1) {
+  async generateFlashCards(
+    documentContent,
+    existingQuestions = [],
+    quantity = 1,
+  ) {
     console.log(
-      `FlashcardGenerationService: generateFlashCards model=${this.qualityModel}, quantity=${quantity}`,
+      `FlashcardGenerationService: generateFlashCards model=${this.qualityModel}, quantity=${quantity}, existingQuestions=${existingQuestions.length}`,
     );
 
     const collected = [];
     const seenQuestions = new Set();
+
+    // Extract question texts from existing questions (max 20 to avoid prompt bloat)
+    const existingQuestionTexts = existingQuestions
+      .slice(0, 20)
+      .map((q) => q.question || q)
+      .filter(Boolean);
 
     for (
       let attempt = 1;
@@ -108,7 +119,7 @@ REGLAS OBLIGATORIAS:
     ) {
       const remaining = quantity - collected.length;
       const requestQuantity = Math.min(remaining + 2, 5);
-      const excluded = Array.from(seenQuestions);
+      const excluded = Array.from(seenQuestions).concat(existingQuestionTexts);
 
       const response = await this.createChatCompletion({
         messages: this.buildFlashcardGenerationMessages(
@@ -150,6 +161,18 @@ REGLAS OBLIGATORIAS:
         const key = flashcard.question.toLowerCase();
         if (seenQuestions.has(key)) continue;
 
+        // Additional deduplication check against existing questions
+        if (
+          existingQuestionTexts.some((existing) =>
+            TextDeduplication.isSimilar(flashcard.question, existing, 70),
+          )
+        ) {
+          console.debug(
+            `FlashcardGenerationService: descartada pregunta similar a existente: "${flashcard.question}"`,
+          );
+          continue;
+        }
+
         seenQuestions.add(key);
         collected.push(flashcard);
 
@@ -167,7 +190,7 @@ REGLAS OBLIGATORIAS:
   }
 
   async generateFlashCard(documentContent) {
-    const flashcards = await this.generateFlashCards(documentContent, 1);
+    const flashcards = await this.generateFlashCards(documentContent, [], 1);
     return flashcards[0];
   }
 }
