@@ -201,46 +201,69 @@ class DocumentProcessingService {
     return results;
   }
 
-  combineStructuredNotes(results) {
-    const keyPoints = new Set();
-    const definitions = new Set();
-    const facts = new Set();
-    const examples = new Set();
+  normalizeForDedup(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[\W_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  combineStructuredNotes(results, limits = {}) {
+    const keyPoints = new Map();
+    const definitions = new Map();
+    const facts = new Map();
+    const examples = new Map();
+
+    const addUnique = (targetMap, value) => {
+      const cleaned = String(value || "").trim();
+      if (!cleaned) return;
+      const key = this.normalizeForDedup(cleaned);
+      if (!key || targetMap.has(key)) return;
+      targetMap.set(key, cleaned);
+    };
 
     for (const result of results) {
       for (const keyPoint of result.keyPoints || []) {
-        keyPoints.add(keyPoint.trim());
+        addUnique(keyPoints, keyPoint);
       }
       for (const definition of result.definitions || []) {
-        definitions.add(definition.trim());
+        addUnique(definitions, definition);
       }
       for (const fact of result.facts || []) {
-        facts.add(fact.trim());
+        addUnique(facts, fact);
       }
       for (const example of result.examples || []) {
-        examples.add(example.trim());
+        addUnique(examples, example);
       }
     }
 
+    const {
+      keyPointsLimit = 25,
+      definitionsLimit = 20,
+      factsLimit = 25,
+      examplesLimit = 15,
+    } = limits;
+
     return [
       "PUNTOS CLAVE:",
-      ...Array.from(keyPoints)
-        .slice(0, 25)
+      ...Array.from(keyPoints.values())
+        .slice(0, keyPointsLimit)
         .map((item) => `- ${item}`),
       "",
       "DEFINICIONES:",
-      ...Array.from(definitions)
-        .slice(0, 20)
+      ...Array.from(definitions.values())
+        .slice(0, definitionsLimit)
         .map((item) => `- ${item}`),
       "",
       "DATOS Y RELACIONES:",
-      ...Array.from(facts)
-        .slice(0, 25)
+      ...Array.from(facts.values())
+        .slice(0, factsLimit)
         .map((item) => `- ${item}`),
       "",
       "EJEMPLOS Y APLICACIONES:",
-      ...Array.from(examples)
-        .slice(0, 15)
+      ...Array.from(examples.values())
+        .slice(0, examplesLimit)
         .map((item) => `- ${item}`),
     ]
       .filter(Boolean)
@@ -248,19 +271,31 @@ class DocumentProcessingService {
       .trim();
   }
 
-  buildFastContext(chunks, maxLength) {
+  buildFastContext(chunks, maxLength, density = "normal") {
     if (!Array.isArray(chunks) || chunks.length === 0) {
       return "";
     }
 
-    const pickIndices = new Set([
-      Math.floor(chunks.length * 0.2),
-      Math.floor(chunks.length * 0.4),
-      Math.floor(chunks.length * 0.6),
-      Math.floor(chunks.length * 0.8),
-    ]);
+    const isWide = density === "wide";
+    const anchorDivisor = isWide ? 4500 : 7000;
+    const scoreDivisor = isWide ? 2200 : 3500;
+    const maxAnchors = isWide ? 14 : 8;
+    const maxScored = isWide ? 28 : 18;
+
+    const anchorCount = Math.min(
+      maxAnchors,
+      Math.max(4, Math.ceil(maxLength / anchorDivisor)),
+    );
+    const pickIndices = new Set();
+    for (let i = 1; i <= anchorCount; i += 1) {
+      pickIndices.add(Math.floor((chunks.length * i) / (anchorCount + 1)));
+    }
 
     // Also prioritize denser chunks by unique word count to preserve salient info.
+    const scoredTake = Math.min(
+      maxScored,
+      Math.max(6, Math.ceil(maxLength / scoreDivisor)),
+    );
     const scored = chunks
       .map((chunk, index) => {
         const words = (chunk.toLowerCase().match(/[a-z0-9áéíóúñü]{3,}/gi) || [])
@@ -269,7 +304,7 @@ class DocumentProcessingService {
         const uniqueWordCount = new Set(words).size;
         const conceptMatches = (
           chunk.match(
-            /\b(concepto|definici[oó]n|proceso|m[eé]todo|teor[ií]a|modelo|evidencia|causa|efecto|aplicaci[oó]n|hip[oó]tesis|an[aá]lisis|resultado|conclusi[oó]n)\b/gi,
+            /\b(concepto|definici[oó]n|proceso|m[eé]todo|teor[ií]a|modelo|evidencia|causa|efecto|aplicaci[oó]n|hip[oó]tesis|an[aá]lisis|resultado|conclusi[oó]n|diagn[oó]stico|tratamiento|s[ií]ntoma|signo|prevenci[oó]n|cuidado|temperatura|clasificaci[oó]n|fisiopatolog[ií]a|protocolo|indicaci[oó]n|contraindic|manejo|valoraci[oó]n)\b/gi,
           ) || []
         ).length;
         const metadataPenalty = this.METADATA_LINE_PATTERNS.some((pattern) =>
@@ -281,7 +316,7 @@ class DocumentProcessingService {
         return { index, chunk, score };
       })
       .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
+      .slice(0, scoredTake);
 
     for (const item of scored) {
       pickIndices.add(item.index);
@@ -349,7 +384,14 @@ class DocumentProcessingService {
    * @returns {Promise<string>} Study-ready context, guaranteed ≤ maxLength chars
    */
   async buildStudyContext(rawContent, groqService, options = {}) {
-    const { maxLength = 4500, fastPathMinChunks = 6, onProgress } = options;
+    const {
+      maxLength = 4500,
+      fastPathMinChunks = 6,
+      useFastPath = true,
+      fastContextDensity = "normal",
+      concurrency,
+      onProgress,
+    } = options;
 
     const report = (stage, percent) => {
       if (typeof onProgress === "function") onProgress({ stage, percent });
@@ -365,6 +407,8 @@ class DocumentProcessingService {
       return this.validateAndTruncateContent(normalized, maxLength);
     }
 
+    const scaleFactor = Math.min(4, Math.max(1, maxLength / 4500));
+
     report("Analizando el documento", 15);
     const chunks = this.splitIntoChunks(normalized);
     console.log(
@@ -372,9 +416,13 @@ class DocumentProcessingService {
     );
 
     // Fast path: document is large enough → sample representative chunks
-    if (chunks.length >= fastPathMinChunks) {
+    if (useFastPath && chunks.length >= fastPathMinChunks) {
       report("Modo rápido para documento grande", 35);
-      const fastContext = this.buildFastContext(chunks, maxLength);
+      const fastContext = this.buildFastContext(
+        chunks,
+        maxLength,
+        fastContextDensity,
+      );
       report("Material listo para generar", 78);
       return this.validateAndTruncateContent(fastContext, maxLength);
     }
@@ -386,7 +434,13 @@ class DocumentProcessingService {
       async (chunk, index, totalChunks) =>
         groqService.extractStudyNotes(chunk, { index, totalChunks }),
       {
-        concurrency: this.MAX_PARALLEL_CHUNKS,
+        concurrency: Math.max(
+          1,
+          Math.min(
+            concurrency || this.MAX_PARALLEL_CHUNKS,
+            this.MAX_PARALLEL_CHUNKS,
+          ),
+        ),
         onProgress: ({ completed, total }) => {
           const pct = 20 + Math.round((completed / total) * 45);
           report(`Analizando sección ${completed} de ${total}`, pct);
@@ -394,7 +448,14 @@ class DocumentProcessingService {
       },
     );
 
-    let combined = this.combineStructuredNotes(notes);
+    const combinedLimits = {
+      keyPointsLimit: Math.round(25 * scaleFactor),
+      definitionsLimit: Math.round(20 * scaleFactor),
+      factsLimit: Math.round(25 * scaleFactor),
+      examplesLimit: Math.round(15 * scaleFactor),
+    };
+
+    let combined = this.combineStructuredNotes(notes, combinedLimits);
     console.log(
       `DocumentProcessingService.buildStudyContext: notas combinadas=${combined.length} chars`,
     );

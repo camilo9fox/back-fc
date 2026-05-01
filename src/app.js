@@ -58,7 +58,7 @@ function createApp() {
 
   // AI generation rate limiter on expensive endpoints
   app.use("/api/flashcards/generate", aiGenerationLimiter);
-  app.use("/api/study-guides", aiGenerationLimiter);
+  app.use("/api/study-guides/generate-async", aiGenerationLimiter);
   app.use("/api/quizzes/generate", aiGenerationLimiter);
   app.use("/api/true-false/generate", aiGenerationLimiter);
 

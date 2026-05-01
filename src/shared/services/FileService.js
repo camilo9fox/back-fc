@@ -1,4 +1,5 @@
-const pdfParse = require("pdf-parse");
+const path = require("path");
+const { Worker } = require("worker_threads");
 const config = require("../config/config");
 
 /**
@@ -11,6 +12,43 @@ class FileService {
     this.SUPPORTED_TYPES = config.limits.allowedFileTypes;
     this.pdfRendererService = pdfRendererService;
     this.ocrService = ocrService;
+    this.pdfParseWorkerPath = path.join(
+      __dirname,
+      "..",
+      "workers",
+      "pdfParseWorker.js",
+    );
+  }
+
+  parsePdfInWorker(buffer) {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(this.pdfParseWorkerPath, {
+        workerData: {
+          buffer,
+        },
+      });
+
+      worker.once("message", (payload) => {
+        if (payload?.error) {
+          reject(new Error(payload.error));
+          return;
+        }
+
+        resolve(payload);
+      });
+
+      worker.once("error", reject);
+
+      worker.once("exit", (code) => {
+        if (code !== 0) {
+          reject(
+            new Error(
+              `El worker de PDF terminó de forma inesperada (${code}).`,
+            ),
+          );
+        }
+      });
+    });
   }
 
   /**
@@ -37,6 +75,16 @@ class FileService {
    * @returns {Promise<string>} Extracted text
    */
   async extractText(file) {
+    const { text } = await this.extractTextWithMeta(file);
+    return text;
+  }
+
+  /**
+   * Extracts text content and metadata from a file
+   * @param {Object} file - File object with buffer and mimetype
+   * @returns {Promise<{text: string, pageCount: number|null}>}
+   */
+  async extractTextWithMeta(file) {
     if (!this.isSupportedFileType(file.mimetype)) {
       throw new Error("Tipo de archivo no soportado. Solo PDF o TXT");
     }
@@ -50,7 +98,7 @@ class FileService {
     if (file.mimetype === "application/pdf") {
       return await this.extractTextFromPdf(file.buffer);
     } else if (file.mimetype === "text/plain") {
-      return this.extractTextFromTxt(file.buffer);
+      return { text: this.extractTextFromTxt(file.buffer), pageCount: null };
     }
   }
 
@@ -60,15 +108,15 @@ class FileService {
    * @returns {Promise<string>} Extracted text
    */
   async extractTextFromPdf(buffer) {
-    const data = await pdfParse(buffer);
-    const extractedText = typeof data.text === "string" ? data.text.trim() : "";
+    const { text: extractedText, pageCount } =
+      await this.parsePdfInWorker(buffer);
 
     console.log(
-      `PDF extraction: pages=${data.numpages}, textLength=${extractedText.length}`,
+      `PDF extraction: pages=${pageCount}, textLength=${extractedText.length}`,
     );
 
     if (extractedText) {
-      return extractedText;
+      return { text: extractedText, pageCount };
     }
 
     // Scanned / image-based PDF — delegate to Tesseract OCR
@@ -79,9 +127,13 @@ class FileService {
     }
 
     console.log("PDF has no selectable text — using OCR...");
-    const { pageCount } = await this.pdfRendererService.analyzeDocument(buffer);
+    const { pageCount: analyzedPageCount } =
+      await this.pdfRendererService.analyzeDocument(buffer);
     const { pageCount: pages, renderPage } =
-      await this.pdfRendererService.createPageRenderer(buffer, pageCount);
+      await this.pdfRendererService.createPageRenderer(
+        buffer,
+        analyzedPageCount,
+      );
     const ocrText = await this.ocrService.extractTextInterleaved(
       pages,
       renderPage,
@@ -94,7 +146,7 @@ class FileService {
     }
 
     console.log(`OCR completado: ${ocrText.length} caracteres extraídos.`);
-    return ocrText;
+    return { text: ocrText, pageCount: analyzedPageCount || pageCount };
   }
 
   /**

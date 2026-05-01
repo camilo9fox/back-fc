@@ -51,11 +51,16 @@ const apiLimiter = rateLimit({
 const aiGenerationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req) =>
+    req.user?.id
+      ? `user:${req.user.id}`
+      : `ip:${rateLimit.ipKeyGenerator(req.ip)}`,
   message: {
     error:
       "Límite de generación con IA alcanzado. Por favor espera 1 hora antes de generar más contenido.",
   },
+  // Defensive guard: only limit expensive generation actions.
+  skip: (req) => req.method !== "POST",
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -67,7 +72,10 @@ const aiGenerationLimiter = rateLimit({
 const perUserApiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 300,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req) =>
+    req.user?.id
+      ? `user:${req.user.id}`
+      : `ip:${rateLimit.ipKeyGenerator(req.ip)}`,
   message: { error: "Demasiadas solicitudes. Por favor espera un momento." },
   standardHeaders: true,
   legacyHeaders: false,

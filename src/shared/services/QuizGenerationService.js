@@ -10,6 +10,94 @@ class QuizGenerationService extends GroqService {
     super(apiKey);
   }
 
+  isUsefulExplanation(explanation) {
+    if (!explanation) return false;
+    const text = String(explanation).trim();
+    const words = text.split(/\s+/).filter(Boolean);
+    const genericPatterns = [
+      /porque si/i,
+      /es la correcta\.?$/i,
+      /es correcto\.?$/i,
+      /opcion correcta\.?$/i,
+      /^correcto\.?$/i,
+    ];
+
+    return (
+      text.length >= 60 &&
+      words.length >= 12 &&
+      !genericPatterns.some((pattern) => pattern.test(text))
+    );
+  }
+
+  async enhanceQuizExplanations(content, questions) {
+    if (!Array.isArray(questions) || questions.length === 0) return questions;
+
+    try {
+      const response = await this.createChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content: `Eres un docente experto. Mejora explicaciones de preguntas de opcion multiple.
+
+REGLAS OBLIGATORIAS:
+1. Devuelve SOLO JSON valido con esta forma exacta: {"questions":[{"index":0,"explanation":"..."}]}.
+2. Mantén los mismos indices recibidos y no inventes indices nuevos.
+3. Cada explanation debe tener entre 40 y 90 palabras.
+4. Cada explanation debe: justificar por que la respuesta correcta lo es, aportar contexto conceptual y aclarar al menos una confusion comun.
+5. Basate SOLO en el material y en los datos de cada pregunta.
+6. Espanol neutro, preciso y didactico.`,
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              material: content,
+              questions: questions.map((q, index) => ({
+                index,
+                question: q.question,
+                options: q.options,
+                correct_answer: q.correct_answer,
+                explanation: q.explanation || "",
+              })),
+            }),
+          },
+        ],
+        preferredModel: this.qualityModel,
+        fallbackModel: this.fastModel,
+        temperature: 0.25,
+        max_completion_tokens: 3500,
+        responseFormat: { type: "json_object" },
+        stream: false,
+      });
+
+      const payload = this.parseJsonPayload(
+        response.choices[0].message.content,
+      );
+      const improvedItems = Array.isArray(payload?.questions)
+        ? payload.questions
+        : [];
+
+      const byIndex = new Map();
+      for (const item of improvedItems) {
+        const idx = Number(item?.index);
+        const explanation = String(item?.explanation || "").trim();
+        if (!Number.isInteger(idx) || idx < 0 || idx >= questions.length)
+          continue;
+        if (!this.isUsefulExplanation(explanation)) continue;
+        byIndex.set(idx, explanation);
+      }
+
+      return questions.map((q, index) => ({
+        ...q,
+        explanation: byIndex.get(index) || q.explanation,
+      }));
+    } catch (error) {
+      console.warn(
+        `QuizGenerationService: no se pudieron mejorar explicaciones, usando version original (${error.message}).`,
+      );
+      return questions;
+    }
+  }
+
   buildQuizGenerationMessages(content, quantity) {
     return [
       {
@@ -20,12 +108,13 @@ REGLAS OBLIGATORIAS:
 1. Devuelve SOLO un objeto JSON valido con la forma {"questions": [...] }.
 2. Cada pregunta debe tener exactamente 4 opciones distintas, claras y plausibles.
 3. La respuesta correcta (correct_answer) DEBE ser una de las 4 opciones exactamente como aparece en el array options.
-4. Incluye una explicacion (explanation) MUY BREVE: MÁXIMO 20 palabras.
-5. Las preguntas deben evaluar comprension conceptual: definiciones, causas, efectos, comparaciones, procesos.
-6. No inventes informacion que no se deduzca claramente del material.
-7. Evita preguntas triviales, repetidas o ambiguas.
-8. No preguntes sobre metadatos: autor, ISBN, editorial, ano de edicion, portada.
-9. Escribe en espanol neutro. No agregues nada fuera del JSON.`,
+4. Incluye una explicacion (explanation) util y sustantiva de 40 a 90 palabras.
+5. La explicacion debe incluir: fundamento conceptual, por que la opcion correcta es correcta y una confusion comun a evitar.
+6. Las preguntas deben evaluar comprension conceptual: definiciones, causas, efectos, comparaciones, procesos.
+7. No inventes informacion que no se deduzca claramente del material.
+8. Evita preguntas triviales, repetidas o ambiguas.
+9. No preguntes sobre metadatos: autor, ISBN, editorial, ano de edicion, portada.
+10. Escribe en espanol neutro. No agregues nada fuera del JSON.`,
       },
       {
         role: "user",
@@ -154,7 +243,8 @@ REGLAS OBLIGATORIAS:
       );
     }
 
-    return collected.slice(0, quantity);
+    const finalQuestions = collected.slice(0, quantity);
+    return this.enhanceQuizExplanations(content, finalQuestions);
   }
 }
 

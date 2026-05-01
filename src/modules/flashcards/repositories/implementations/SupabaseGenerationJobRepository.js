@@ -70,9 +70,10 @@ class SupabaseGenerationJobRepository {
       .eq("id", jobId)
       .eq("user_id", userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw new Error(`GenerationJobRepo.update: ${error.message}`);
+    if (!data) return null;
     return this._toJob(data);
   }
 
