@@ -30,6 +30,27 @@ src/
      GROQ_API_KEY=tu_clave_aqui
      ```
 
+### Fallback automatico de modelos Groq
+
+El backend implementa una cadena ordenada de modelos para evitar fallos por limites (rate limit / quota).
+Si un modelo responde con error de limite, se reintenta y luego se avanza automaticamente al siguiente modelo.
+
+Variables opcionales:
+
+```env
+# Cadena ordenada de modelos (coma-separado)
+GROQ_MODEL_CHAIN=allam-2-7b,groq/compound,groq/compound-mini,llama-3.1-8b-instant,llama-3.3-70b-versatile,meta-llama/llama-4-scout-17b-16e-instruct,meta-llama/llama-prompt-guard-2-22m,meta-llama/llama-prompt-guard-2-86m,openai/gpt-oss-120b,openai/gpt-oss-20b,openai/gpt-oss-safeguard-20b,qwen/qwen3-32b
+
+# Modelos preferidos por servicio (punto de inicio en la cadena)
+GROQ_FAST_MODEL=llama-3.1-8b-instant
+GROQ_QUALITY_MODEL=llama-3.3-70b-versatile
+
+# Reintentos por modelo antes de pasar al siguiente en errores de limite
+GROQ_RATE_LIMIT_RETRIES_PER_MODEL=2
+```
+
+Importante: el fallback en cadena solo se activa para errores de limite. Errores de validacion/payload siguen devolviendose de inmediato.
+
 ## Uso
 
 ### Desarrollo

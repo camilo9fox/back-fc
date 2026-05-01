@@ -6,6 +6,24 @@ const CB_CLOSED = "CLOSED"; // Normal operation
 const CB_OPEN = "OPEN"; // Failing — reject calls immediately
 const CB_HALF_OPEN = "HALF_OPEN"; // Testing if service recovered
 
+// Ordered from most efficient/available pool to least efficient.
+const DEFAULT_GROQ_MODEL_CHAIN = [
+  "allam-2-7b",
+  "groq/compound",
+  "groq/compound-mini",
+  "llama-3.1-8b-instant",
+  "llama-3.3-70b-versatile",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "meta-llama/llama-prompt-guard-2-22m",
+  "meta-llama/llama-prompt-guard-2-86m",
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-safeguard-20b",
+  "qwen/qwen3-32b",
+];
+
+const DEFAULT_RATE_LIMIT_RETRIES_PER_MODEL = 2;
+
 class GroqService {
   constructor(apiKey) {
     this.groq = new Groq({ apiKey });
@@ -13,6 +31,12 @@ class GroqService {
     this.qualityModel =
       process.env.GROQ_QUALITY_MODEL || "llama-3.3-70b-versatile";
     this.MAX_GENERATION_ATTEMPTS = 3;
+    this.RATE_LIMIT_RETRIES_PER_MODEL = Math.max(
+      1,
+      Number(process.env.GROQ_RATE_LIMIT_RETRIES_PER_MODEL) ||
+        DEFAULT_RATE_LIMIT_RETRIES_PER_MODEL,
+    );
+    this.modelFallbackChain = this._buildConfiguredModelChain();
 
     // Circuit breaker state
     this._cb = {
@@ -22,6 +46,106 @@ class GroqService {
       FAILURE_THRESHOLD: 5, // failures before opening
       COOLDOWN_MS: 60_000, // 1 min open before trying again
     };
+
+    logger.info(
+      `GroqService model fallback chain inicializada (${this.modelFallbackChain.length} modelos): ${this.modelFallbackChain.join(" -> ")}`,
+    );
+  }
+
+  _uniqueDefined(items = []) {
+    const seen = new Set();
+    const unique = [];
+
+    for (const raw of items) {
+      const value = String(raw || "").trim();
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      unique.push(value);
+    }
+
+    return unique;
+  }
+
+  _parseModelList(rawList) {
+    if (!rawList || typeof rawList !== "string") return [];
+    return this._uniqueDefined(rawList.split(",").map((item) => item.trim()));
+  }
+
+  _buildConfiguredModelChain() {
+    const fromEnv = this._parseModelList(process.env.GROQ_MODEL_CHAIN);
+    const base = fromEnv.length > 0 ? fromEnv : DEFAULT_GROQ_MODEL_CHAIN;
+
+    // Ensure explicit fast/quality models remain available even if custom chain omits them.
+    return this._uniqueDefined([this.fastModel, this.qualityModel, ...base]);
+  }
+
+  _buildOrderedAttemptChain(preferredModel, fallbackModel) {
+    const base = this.modelFallbackChain;
+    if (!Array.isArray(base) || base.length === 0) {
+      return this._uniqueDefined([
+        preferredModel,
+        fallbackModel,
+        this.qualityModel,
+        this.fastModel,
+      ]);
+    }
+
+    const preferred = String(preferredModel || "").trim();
+    const fallback = String(fallbackModel || "").trim();
+    let ordered;
+
+    if (preferred) {
+      const startIndex = base.indexOf(preferred);
+      ordered =
+        startIndex >= 0
+          ? [...base.slice(startIndex), ...base.slice(0, startIndex)]
+          : [preferred, ...base];
+    } else {
+      ordered = [...base];
+    }
+
+    // Backward compatibility: if fallback is custom and not present, try it early.
+    if (fallback && !ordered.includes(fallback)) {
+      if (preferred && ordered[0] === preferred) {
+        ordered = [ordered[0], fallback, ...ordered.slice(1)];
+      } else {
+        ordered = [fallback, ...ordered];
+      }
+    }
+
+    return this._uniqueDefined(ordered);
+  }
+
+  _isRateLimitError(error) {
+    const message = String(error?.message || "").toLowerCase();
+    const status = Number(error?.status || error?.statusCode || 0);
+
+    return (
+      status === 429 ||
+      message.includes("429") ||
+      message.includes("rate limit") ||
+      message.includes("rate_limit") ||
+      message.includes("quota") ||
+      message.includes("tokens per minute") ||
+      message.includes("requests per minute")
+    );
+  }
+
+  _getRateLimitBackoffMs(error, attemptIndex) {
+    const message = String(error?.message || "");
+    const secondsMatch = message.match(/try again in\s*([\d.]+)s/i);
+    if (secondsMatch) {
+      return Math.ceil(parseFloat(secondsMatch[1]) * 1000) + 200;
+    }
+
+    const millisecondsMatch = message.match(/try again in\s*([\d.]+)ms/i);
+    if (millisecondsMatch) {
+      return Math.ceil(parseFloat(millisecondsMatch[1])) + 200;
+    }
+
+    const base = (attemptIndex + 1) * 1200;
+    const jitter = Math.floor(Math.random() * 250);
+    return base + jitter;
   }
 
   // ── Circuit breaker helpers ─────────────────────────────────────────────────
@@ -55,7 +179,9 @@ class GroqService {
     const cb = this._cb;
     // Don't trip the breaker on rate-limit (429) or client errors — only on
     // server errors and network failures that indicate Groq is unavailable.
-    const is429 = error?.status === 429 || error?.message?.includes("429");
+    const is429 = this._isRateLimitError(error);
+    if (is429) return;
+
     const isClientError = error?.status >= 400 && error?.status < 500 && !is429;
     if (isClientError) return;
 
@@ -83,11 +209,25 @@ class GroqService {
       );
     }
 
-    const models = [preferredModel, fallbackModel].filter(Boolean);
+    const models = this._buildOrderedAttemptChain(
+      preferredModel,
+      fallbackModel,
+    );
+    if (models.length === 0) {
+      throw new Error(
+        "No hay modelos disponibles para completar la solicitud.",
+      );
+    }
+
     let lastError = null;
+
     for (const model of models) {
-      // Retry up to 3 times on 429 rate-limit errors with backoff
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // Retry a small number of times per model on rate-limit errors.
+      for (
+        let attempt = 0;
+        attempt < this.RATE_LIMIT_RETRIES_PER_MODEL;
+        attempt++
+      ) {
         try {
           const result = await this.groq.chat.completions.create({
             messages,
@@ -95,30 +235,47 @@ class GroqService {
             ...(responseFormat ? { response_format: responseFormat } : {}),
             ...options,
           });
+
+          logger.info(`Groq completion OK con modelo=${model}`);
           this._cbRecordSuccess();
           return result;
         } catch (error) {
-          const is429 =
-            error?.status === 429 ||
-            (error?.message && error.message.includes("429"));
-          if (!is429 || attempt === 2) {
-            lastError = error;
+          const isRateLimit = this._isRateLimitError(error);
+
+          if (!isRateLimit) {
+            this._cbRecordFailure(error);
+            throw error;
+          }
+
+          lastError = error;
+          const hasAnotherRetryOnSameModel =
+            attempt < this.RATE_LIMIT_RETRIES_PER_MODEL - 1;
+
+          if (!hasAnotherRetryOnSameModel) {
+            logger.warn(
+              `Groq rate-limit con modelo=${model}. Probando siguiente modelo en la cadena...`,
+            );
             break;
           }
-          // Parse retryDelay from error message if available
-          const retryMatch = error.message?.match(/try again in ([\d.]+)s/i);
-          const waitMs = retryMatch
-            ? Math.ceil(parseFloat(retryMatch[1]) * 1000) + 200
-            : (attempt + 1) * 3000;
+
+          const waitMs = this._getRateLimitBackoffMs(error, attempt);
           logger.warn(
-            `Groq rate limit (${model}, attempt ${attempt + 1}/3). Retrying in ${waitMs}ms...`,
+            `Groq rate-limit (${model}, intento ${attempt + 1}/${this.RATE_LIMIT_RETRIES_PER_MODEL}). Reintentando en ${waitMs}ms...`,
           );
           await new Promise((resolve) => setTimeout(resolve, waitMs));
         }
       }
-      if (lastError === null) break; // success on this model
     }
+
     this._cbRecordFailure(lastError);
+
+    if (this._isRateLimitError(lastError)) {
+      const chain = models.join(" -> ");
+      throw new Error(
+        `Todos los modelos de la cadena alcanzaron limite temporal. Modelos probados: ${chain}. Ultimo error: ${lastError?.message || "rate limit"}`,
+      );
+    }
+
     throw lastError;
   }
 
