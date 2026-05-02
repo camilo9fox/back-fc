@@ -90,6 +90,7 @@ class QuizService {
       this.groqService,
       {
         maxLength: 4500,
+        fastPathMaxInputChars: 260000,
         onProgress: ({ stage, percent }) => {
           // map buildStudyContext 0-100 → 30-75
           report(stage, 30 + Math.round(percent * 0.45));

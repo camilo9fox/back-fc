@@ -52,7 +52,7 @@ REGLAS OBLIGATORIAS:
           {
             role: "user",
             content: JSON.stringify({
-              material: content,
+              material: content.slice(0, 1500),
               questions: statements.map((s, index) => ({
                 index,
                 statement: s.statement,
@@ -62,10 +62,10 @@ REGLAS OBLIGATORIAS:
             }),
           },
         ],
-        preferredModel: this.qualityModel,
+        preferredModel: this.fastModel,
         fallbackModel: this.fastModel,
         temperature: 0.25,
-        max_completion_tokens: 3500,
+        max_completion_tokens: 2000,
         responseFormat: { type: "json_object" },
         stream: false,
       });
@@ -176,6 +176,7 @@ REGLAS OBLIGATORIAS:
 
     const collected = [];
     const seenStatements = new Set();
+    const maxAttempts = quantity >= 8 ? 2 : this.MAX_GENERATION_ATTEMPTS;
 
     // Extract statement texts from existing statements (max 20 to avoid prompt bloat)
     const existingStatementTexts = existingStatements
@@ -185,43 +186,41 @@ REGLAS OBLIGATORIAS:
 
     for (
       let attempt = 1;
-      attempt <= this.MAX_GENERATION_ATTEMPTS && collected.length < quantity;
+      attempt <= maxAttempts && collected.length < quantity;
       attempt += 1
     ) {
       const remaining = quantity - collected.length;
-      const requestQuantity = Math.min(remaining + 2, 5);
+      const requestQuantity = Math.min(remaining + 1, 10);
       const excluded = Array.from(seenStatements).concat(
         existingStatementTexts,
       );
 
-      const response = await this.createChatCompletion({
-        messages: this.buildTrueFalseGenerationMessages(
-          content,
-          requestQuantity,
-          excluded,
-        ),
-        preferredModel: this.qualityModel,
-        fallbackModel: this.fastModel,
-        temperature: attempt === 1 ? 0.55 : 0.7,
-        max_completion_tokens: 3000,
-        frequency_penalty: 0.3,
-        responseFormat: { type: "json_object" },
-        stream: false,
-      });
-
-      const payload = this.parseJsonPayload(
-        response.choices[0].message.content,
-      );
-      const rawItems = Array.isArray(payload)
-        ? payload
-        : payload.questions || [payload];
-
       let batch = [];
       try {
+        const response = await this.createChatCompletion({
+          messages: this.buildTrueFalseGenerationMessages(
+            content,
+            requestQuantity,
+            excluded,
+          ),
+          preferredModel: this.fastModel,
+          fallbackModel: this.fastModel,
+          temperature: attempt === 1 ? 0.55 : 0.7,
+          max_completion_tokens: 2200,
+          frequency_penalty: 0.3,
+          responseFormat: { type: "json_object" },
+          stream: false,
+        });
+        const payload = this.parseJsonPayload(
+          response.choices[0].message.content,
+        );
+        const rawItems = Array.isArray(payload)
+          ? payload
+          : payload.questions || [payload];
         batch = this.sanitizeTrueFalseStatements(rawItems, requestQuantity);
-      } catch {
+      } catch (err) {
         console.warn(
-          `TrueFalseGenerationService: intento ${attempt} sin afirmaciones válidas, reintentando...`,
+          `TrueFalseGenerationService: intento ${attempt} falló (${err.message}), continuando...`,
         );
         continue;
       }
@@ -233,7 +232,7 @@ REGLAS OBLIGATORIAS:
         // Additional deduplication check against existing statements
         if (
           existingStatementTexts.some((existing) =>
-            TextDeduplication.isSimilar(item.statement, existing, 70),
+            TextDeduplication.isSimilar(item.statement, existing, 92),
           )
         ) {
           console.debug(
@@ -248,14 +247,53 @@ REGLAS OBLIGATORIAS:
       }
     }
 
-    if (collected.length < quantity) {
+    // Last resort: if everything was filtered as similar, run one final attempt
+    // without the similarity filter so we always return something.
+    if (collected.length === 0 && existingStatementTexts.length > 0) {
+      console.warn(
+        `TrueFalseGenerationService: todas las afirmaciones fueron filtradas. Ejecutando intento final sin filtro de similitud...`,
+      );
+      try {
+        const response = await this.createChatCompletion({
+          messages: this.buildTrueFalseGenerationMessages(
+            content,
+            quantity,
+            existingStatementTexts,
+          ),
+          preferredModel: this.fastModel,
+          fallbackModel: this.fastModel,
+          temperature: 0.85,
+          max_completion_tokens: 3000,
+          frequency_penalty: 0.5,
+          responseFormat: { type: "json_object" },
+          stream: false,
+        });
+        const payload = this.parseJsonPayload(
+          response.choices[0].message.content,
+        );
+        const rawItems = Array.isArray(payload)
+          ? payload
+          : payload.questions || [payload];
+        const lastResort = this.sanitizeTrueFalseStatements(rawItems, quantity);
+        collected.push(...lastResort);
+      } catch (err) {
+        console.warn(
+          `TrueFalseGenerationService: intento final también falló (${err.message}).`,
+        );
+      }
+    }
+
+    if (collected.length === 0) {
       throw new Error(
-        `No se pudieron generar ${quantity} afirmaciones válidas. Se generaron ${collected.length}.`,
+        `No se pudieron generar afirmaciones válidas tras ${this.MAX_GENERATION_ATTEMPTS} intentos.`,
       );
     }
 
     const finalStatements = collected.slice(0, quantity);
-    return this.enhanceTrueFalseExplanations(content, finalStatements);
+    if (finalStatements.length <= 6) {
+      return this.enhanceTrueFalseExplanations(content, finalStatements);
+    }
+    return finalStatements;
   }
 }
 

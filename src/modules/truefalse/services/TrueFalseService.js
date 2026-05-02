@@ -93,6 +93,7 @@ class TrueFalseService {
       this.groqService,
       {
         maxLength: 4500,
+        fastPathMaxInputChars: 260000,
         onProgress: ({ stage, percent }) => {
           report(stage, 30 + Math.round(percent * 0.45));
         },

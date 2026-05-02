@@ -147,7 +147,7 @@ class TrueFalseController {
         type: "truefalse-generation",
         metadata: {
           title,
-          quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 20),
+          quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 10),
           fileName: file?.originalname || null,
           inputMode: file ? "file" : "text",
         },
@@ -167,7 +167,7 @@ class TrueFalseController {
             text,
             title,
             categoryId,
-            quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 20),
+            quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 10),
             userId,
             onProgress: (progress) => {
               this.generationJobService.updateJob(job.id, userId, {
@@ -221,7 +221,7 @@ class TrueFalseController {
         text,
         title,
         categoryId,
-        quantity: Math.min(Math.max(parseInt(quantity) || 10, 1), 30),
+        quantity: Math.min(Math.max(parseInt(quantity) || 10, 1), 10),
         userId,
       });
 

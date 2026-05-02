@@ -22,7 +22,7 @@ const DEFAULT_GROQ_MODEL_CHAIN = [
   "qwen/qwen3-32b",
 ];
 
-const DEFAULT_RATE_LIMIT_RETRIES_PER_MODEL = 2;
+const DEFAULT_RATE_LIMIT_RETRIES_PER_MODEL = 1;
 
 class GroqService {
   constructor(apiKey) {

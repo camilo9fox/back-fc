@@ -18,6 +18,44 @@ class FileService {
       "workers",
       "pdfParseWorker.js",
     );
+    this.PDF_TEXT_CACHE_TTL_MS = 20 * 60 * 1000;
+    this.PDF_TEXT_CACHE_MAX_ENTRIES = 8;
+    this.pdfTextCache = new Map();
+  }
+
+  buildPdfCacheKey(buffer) {
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
+    const head = buffer.slice(0, 2048).toString("base64");
+    const tail = buffer.slice(-2048).toString("base64");
+    return `${buffer.length}:${head}:${tail}`;
+  }
+
+  getCachedPdfText(cacheKey) {
+    const entry = this.pdfTextCache.get(cacheKey);
+    if (!entry) return null;
+
+    if (Date.now() > entry.expiresAt) {
+      this.pdfTextCache.delete(cacheKey);
+      return null;
+    }
+
+    this.pdfTextCache.delete(cacheKey);
+    this.pdfTextCache.set(cacheKey, entry);
+    return entry.value;
+  }
+
+  setCachedPdfText(cacheKey, value) {
+    if (!cacheKey || !value?.text) return;
+
+    if (this.pdfTextCache.size >= this.PDF_TEXT_CACHE_MAX_ENTRIES) {
+      const firstKey = this.pdfTextCache.keys().next().value;
+      if (firstKey) this.pdfTextCache.delete(firstKey);
+    }
+
+    this.pdfTextCache.set(cacheKey, {
+      value,
+      expiresAt: Date.now() + this.PDF_TEXT_CACHE_TTL_MS,
+    });
   }
 
   parsePdfInWorker(buffer) {
@@ -108,6 +146,15 @@ class FileService {
    * @returns {Promise<string>} Extracted text
    */
   async extractTextFromPdf(buffer) {
+    const cacheKey = this.buildPdfCacheKey(buffer);
+    const cached = cacheKey ? this.getCachedPdfText(cacheKey) : null;
+    if (cached) {
+      console.log(
+        `PDF extraction (cache): pages=${cached.pageCount}, textLength=${cached.text.length}`,
+      );
+      return cached;
+    }
+
     const { text: extractedText, pageCount } =
       await this.parsePdfInWorker(buffer);
 
@@ -116,7 +163,9 @@ class FileService {
     );
 
     if (extractedText) {
-      return { text: extractedText, pageCount };
+      const result = { text: extractedText, pageCount };
+      if (cacheKey) this.setCachedPdfText(cacheKey, result);
+      return result;
     }
 
     // Scanned / image-based PDF — delegate to Tesseract OCR
@@ -146,7 +195,12 @@ class FileService {
     }
 
     console.log(`OCR completado: ${ocrText.length} caracteres extraídos.`);
-    return { text: ocrText, pageCount: analyzedPageCount || pageCount };
+    const ocrResult = {
+      text: ocrText,
+      pageCount: analyzedPageCount || pageCount,
+    };
+    if (cacheKey) this.setCachedPdfText(cacheKey, ocrResult);
+    return ocrResult;
   }
 
   /**

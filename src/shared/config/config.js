@@ -9,7 +9,7 @@ const config = {
   },
   limits: {
     maxContentLength: 4500,
-    maxFlashCards: 20,
+    maxFlashCards: 10,
     minFlashCards: 1,
     fileSizeLimit: (Number(process.env.FILE_SIZE_LIMIT_MB) || 50) * 1024 * 1024,
     allowedFileTypes: ["application/pdf", "text/plain"],

@@ -74,9 +74,9 @@ class ManualFlashCardService {
       throw new ValidationError("Debe proporcionar al menos una flashcard.");
     }
 
-    if (flashCardsData.length > 20) {
+    if (flashCardsData.length > 10) {
       throw new ValidationError(
-        "No se pueden crear más de 20 flashcards manuales a la vez.",
+        "No se pueden crear más de 10 flashcards manuales a la vez.",
       );
     }
 

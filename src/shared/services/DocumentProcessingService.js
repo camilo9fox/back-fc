@@ -21,6 +21,54 @@ class DocumentProcessingService {
       /^\s*(?:pr[oó]logo|prefacio|dedicatoria|agradecimientos)\s*$/i,
       /^\s*p[aá]gina\s+\d+\s*$/i,
     ];
+    this.CONTEXT_CACHE_TTL_MS = 30 * 60 * 1000;
+    this.CONTEXT_CACHE_MAX_ENTRIES = 24;
+    this.contextCache = new Map();
+  }
+
+  buildContextCacheKey(normalizedText, options = {}) {
+    const text = String(normalizedText || "");
+    const head = text.slice(0, 1600);
+    const tail = text.slice(-1600);
+    return [
+      text.length,
+      head,
+      tail,
+      options.maxLength || 4500,
+      options.fastPathMinChunks || 6,
+      options.useFastPath !== false,
+      options.fastContextDensity || "normal",
+      options.fastPathMaxInputChars || 260000,
+    ].join("::");
+  }
+
+  getCachedContext(cacheKey) {
+    const entry = this.contextCache.get(cacheKey);
+    if (!entry) return null;
+
+    if (Date.now() > entry.expiresAt) {
+      this.contextCache.delete(cacheKey);
+      return null;
+    }
+
+    // LRU refresh
+    this.contextCache.delete(cacheKey);
+    this.contextCache.set(cacheKey, entry);
+    return entry.value;
+  }
+
+  setCachedContext(cacheKey, value) {
+    if (!cacheKey || !value) return;
+
+    if (this.contextCache.size >= this.CONTEXT_CACHE_MAX_ENTRIES) {
+      const firstKey = this.contextCache.keys().next().value;
+      if (firstKey) this.contextCache.delete(firstKey);
+    }
+
+    this.contextCache.set(cacheKey, {
+      value,
+      expiresAt: Date.now() + this.CONTEXT_CACHE_TTL_MS,
+    });
   }
 
   normalizeText(text) {
@@ -331,6 +379,29 @@ class DocumentProcessingService {
     return this.validateAndTruncateContent(joined, maxLength);
   }
 
+  sampleTextForFastPath(text, targetChars = 260000) {
+    const source = String(text || "");
+    if (!source || source.length <= targetChars) {
+      return source;
+    }
+
+    // Keep representative coverage (beginning, middle zones, end) while capping
+    // CPU/memory cost of full-document chunking for very large PDFs.
+    const windows = 6;
+    const windowSize = Math.max(12000, Math.floor(targetChars / windows));
+    const maxStart = Math.max(0, source.length - windowSize);
+    const slices = [];
+
+    for (let i = 0; i < windows; i += 1) {
+      const ratio = windows === 1 ? 0 : i / (windows - 1);
+      const start = Math.min(maxStart, Math.floor(maxStart * ratio));
+      const end = Math.min(source.length, start + windowSize);
+      slices.push(source.slice(start, end));
+    }
+
+    return slices.join("\n\n");
+  }
+
   /**
    * Combines processed results with line breaks
    * @param {Array} results - Array of processed results to combine
@@ -389,6 +460,7 @@ class DocumentProcessingService {
       fastPathMinChunks = 6,
       useFastPath = true,
       fastContextDensity = "normal",
+      fastPathMaxInputChars = 260000,
       concurrency,
       onProgress,
     } = options;
@@ -402,15 +474,45 @@ class DocumentProcessingService {
       `DocumentProcessingService.buildStudyContext: entrada=${normalized.length} chars`,
     );
 
+    const cacheKey = this.buildContextCacheKey(normalized, {
+      maxLength,
+      fastPathMinChunks,
+      useFastPath,
+      fastContextDensity,
+      fastPathMaxInputChars,
+    });
+    const cachedContext = this.getCachedContext(cacheKey);
+    if (cachedContext) {
+      console.log("DocumentProcessingService.buildStudyContext: cache hit");
+      report("Material listo para generar (cache)", 78);
+      return cachedContext;
+    }
+
     // Short document — nothing to do
     if (normalized.length <= maxLength) {
-      return this.validateAndTruncateContent(normalized, maxLength);
+      const shortContext = this.validateAndTruncateContent(
+        normalized,
+        maxLength,
+      );
+      this.setCachedContext(cacheKey, shortContext);
+      return shortContext;
     }
 
     const scaleFactor = Math.min(4, Math.max(1, maxLength / 4500));
 
     report("Analizando el documento", 15);
-    const chunks = this.splitIntoChunks(normalized);
+    const fastPathInput =
+      useFastPath && normalized.length > fastPathMaxInputChars
+        ? this.sampleTextForFastPath(normalized, fastPathMaxInputChars)
+        : normalized;
+
+    if (fastPathInput.length !== normalized.length) {
+      console.log(
+        `DocumentProcessingService.buildStudyContext: fast-path sample ${normalized.length} -> ${fastPathInput.length} chars`,
+      );
+    }
+
+    const chunks = this.splitIntoChunks(fastPathInput);
     console.log(
       `DocumentProcessingService.buildStudyContext: ${chunks.length} chunks`,
     );
@@ -424,7 +526,12 @@ class DocumentProcessingService {
         fastContextDensity,
       );
       report("Material listo para generar", 78);
-      return this.validateAndTruncateContent(fastContext, maxLength);
+      const finalFastContext = this.validateAndTruncateContent(
+        fastContext,
+        maxLength,
+      );
+      this.setCachedContext(cacheKey, finalFastContext);
+      return finalFastContext;
     }
 
     // Slow path: extract structured study notes from each chunk in parallel
@@ -473,7 +580,9 @@ class DocumentProcessingService {
     }
 
     report("Material listo para generar", 78);
-    return this.validateAndTruncateContent(combined, maxLength);
+    const finalContext = this.validateAndTruncateContent(combined, maxLength);
+    this.setCachedContext(cacheKey, finalContext);
+    return finalContext;
   }
 }
 

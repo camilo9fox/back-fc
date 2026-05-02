@@ -51,7 +51,7 @@ REGLAS OBLIGATORIAS:
           {
             role: "user",
             content: JSON.stringify({
-              material: content,
+              material: content.slice(0, 1500),
               questions: questions.map((q, index) => ({
                 index,
                 question: q.question,
@@ -62,10 +62,10 @@ REGLAS OBLIGATORIAS:
             }),
           },
         ],
-        preferredModel: this.qualityModel,
+        preferredModel: this.fastModel,
         fallbackModel: this.fastModel,
         temperature: 0.25,
-        max_completion_tokens: 3500,
+        max_completion_tokens: 2000,
         responseFormat: { type: "json_object" },
         stream: false,
       });
@@ -92,14 +92,33 @@ REGLAS OBLIGATORIAS:
         explanation: byIndex.get(index) || q.explanation,
       }));
     } catch (error) {
-      console.warn(
-        `QuizGenerationService: no se pudieron mejorar explicaciones, usando version original (${error.message}).`,
-      );
+      const message = String(error?.message || "");
+      const isSizeError =
+        message.includes("Please reduce the length") ||
+        message.includes("request_too_large") ||
+        message.includes("Request Entity Too Large");
+
+      if (isSizeError) {
+        console.info(
+          "QuizGenerationService: mejora de explicaciones omitida por tamaño de payload; se usa versión original.",
+        );
+      } else {
+        console.warn(
+          `QuizGenerationService: no se pudieron mejorar explicaciones, usando version original (${error.message}).`,
+        );
+      }
       return questions;
     }
   }
 
-  buildQuizGenerationMessages(content, quantity, excluded = []) {
+  buildQuizGenerationMessages(content, quantity, excluded = [], options = {}) {
+    const conciseMode = Boolean(options.conciseMode);
+    const explanationRules = conciseMode
+      ? `4. Incluye explanation breve (maximo 18 palabras). Si no es posible, usa una cadena vacia "".
+5. Prioriza variedad y precision de preguntas sobre longitud de explicaciones.`
+      : `4. Incluye una explicacion (explanation) util y sustantiva de 40 a 90 palabras.
+5. La explicacion debe incluir: fundamento conceptual, por que la opcion correcta es correcta y una confusion comun a evitar.`;
+
     const excludedBlock =
       excluded.length > 0
         ? `\n\nPREGUNTAS PROHIBIDAS (no repetir):\n${excluded
@@ -117,8 +136,7 @@ REGLAS OBLIGATORIAS:
 1. Devuelve SOLO un objeto JSON valido con la forma {"questions": [...] }.
 2. Cada pregunta debe tener exactamente 4 opciones distintas, claras y plausibles.
 3. La respuesta correcta (correct_answer) DEBE ser una de las 4 opciones exactamente como aparece en el array options.
-4. Incluye una explicacion (explanation) util y sustantiva de 40 a 90 palabras.
-5. La explicacion debe incluir: fundamento conceptual, por que la opcion correcta es correcta y una confusion comun a evitar.
+${explanationRules}
 6. Las preguntas deben evaluar comprension conceptual: definiciones, causas, efectos, comparaciones, procesos.
 7. No inventes informacion que no se deduzca claramente del material.
 8. Evita preguntas triviales, repetidas o ambiguas.
@@ -190,94 +208,153 @@ REGLAS OBLIGATORIAS:
 
   async generateQuizQuestions(content, existingQuestions = [], quantity = 5) {
     console.log(
-      `QuizGenerationService: generateQuizQuestions model=${this.qualityModel}, quantity=${quantity}, existingQuestions=${existingQuestions.length}`,
+      `QuizGenerationService: generateQuizQuestions quantity=${quantity}, existingQuestions=${existingQuestions.length}`,
     );
 
-    const collected = [];
-    const seenQuestions = new Set();
-
-    // Extract question texts from existing questions (max 20 to avoid prompt bloat)
     const existingQuestionTexts = existingQuestions
-      .slice(0, 20)
+      .slice(0, 30)
       .map((q) => q.question || q)
       .filter(Boolean);
 
-    for (
-      let attempt = 1;
-      attempt <= this.MAX_GENERATION_ATTEMPTS && collected.length < quantity;
-      attempt += 1
-    ) {
-      const remaining = quantity - collected.length;
-      const requestQuantity = Math.min(remaining + 2, 5);
-      const excluded = Array.from(seenQuestions).concat(existingQuestionTexts);
+    const targetBatchSize = 10;
 
+    const requestBatch = async (requestQty, excluded, temperature = 0.6) => {
       const response = await this.createChatCompletion({
         messages: this.buildQuizGenerationMessages(
           content,
-          requestQuantity,
+          requestQty,
           excluded,
         ),
-        preferredModel: this.qualityModel,
+        preferredModel: this.fastModel,
         fallbackModel: this.fastModel,
-        temperature: attempt === 1 ? 0.55 : 0.7,
-        max_completion_tokens: 3000,
+        temperature,
+        max_completion_tokens: 2200,
         frequency_penalty: 0.3,
         responseFormat: { type: "json_object" },
         stream: false,
       });
-
       const payload = this.parseJsonPayload(
         response.choices[0].message.content,
       );
       const rawItems = Array.isArray(payload)
         ? payload
         : payload.questions || [payload];
+      return this.sanitizeQuizQuestions(rawItems, requestQty);
+    };
 
-      let batch = [];
-      try {
-        batch = this.sanitizeQuizQuestions(rawItems, requestQuantity);
-      } catch (err) {
-        console.warn(
-          `QuizGenerationService: intento ${attempt} sin preguntas quiz válidas, reintentando...`,
-        );
-        console.warn(`QuizGenerationService: error sanitize → ${err.message}`);
-        console.warn(
-          `QuizGenerationService: rawItems[0] →`,
-          JSON.stringify(rawItems[0], null, 2),
-        );
-        continue;
-      }
+    const collected = [];
+    const seenQuestions = new Set();
 
+    const normalizeQuestion = (text) =>
+      String(text || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const addBatch = (batch, useSemanticDedup = true) => {
       for (const item of batch) {
-        const key = item.question.toLowerCase();
+        const key = normalizeQuestion(item.question);
+        if (!key) continue;
         if (seenQuestions.has(key)) continue;
 
-        // Additional deduplication check against existing questions
-        if (
-          existingQuestionTexts.some((existing) =>
-            TextDeduplication.isSimilar(item.question, existing, 70),
-          )
-        ) {
-          console.debug(
-            `QuizGenerationService: descartada pregunta similar a existente: "${item.question}"`,
+        if (useSemanticDedup) {
+          const existingThreshold = quantity >= 8 ? 95 : 92;
+          const collectedThreshold = quantity >= 8 ? 94 : 90;
+          const similarToExisting = existingQuestionTexts.some((ex) =>
+            TextDeduplication.isSimilar(item.question, ex, existingThreshold),
           );
-          continue;
+          const similarToCollected = collected.some((q) =>
+            TextDeduplication.isSimilar(
+              item.question,
+              q.question,
+              collectedThreshold,
+            ),
+          );
+
+          if (similarToExisting || similarToCollected) {
+            console.debug(
+              `QuizGenerationService: descartada pregunta similar: "${item.question}"`,
+            );
+            continue;
+          }
         }
 
         seenQuestions.add(key);
         collected.push(item);
         if (collected.length >= quantity) break;
       }
+    };
+
+    const buildExcluded = () =>
+      collected
+        .map((q) => q.question)
+        .concat(existingQuestionTexts)
+        .slice(0, 30);
+
+    const maxAttempts = 2;
+
+    for (
+      let attempt = 1;
+      attempt <= maxAttempts && collected.length < quantity;
+      attempt += 1
+    ) {
+      const remaining = quantity - collected.length;
+      const excluded = buildExcluded();
+
+      try {
+        const requestQty = Math.min(remaining + 2, targetBatchSize);
+        const batch = await requestBatch(
+          requestQty,
+          excluded,
+          attempt === 1 ? 0.55 : 0.65,
+        );
+        addBatch(batch, true);
+      } catch (err) {
+        console.warn(
+          `QuizGenerationService: intento ${attempt} falló (${err.message}).`,
+        );
+      }
     }
 
+    // Last resort: if strict semantic dedup leaves a short result, fill remaining
+    // with exact-dedup-only questions to avoid front-end failures.
+    for (
+      let fillAttempt = 1;
+      fillAttempt <= 1 && collected.length < quantity;
+      fillAttempt += 1
+    ) {
+      const remaining = quantity - collected.length;
+      const excluded = buildExcluded();
+
+      console.warn(
+        `QuizGenerationService: fill ${fillAttempt}/1 para completar ${remaining} preguntas (dedup semántica relajada).`,
+      );
+
+      try {
+        const requestQty = Math.min(remaining + 3, targetBatchSize);
+        const batch = await requestBatch(requestQty, excluded, 0.8);
+        addBatch(batch, false);
+      } catch (err) {
+        console.warn(
+          `QuizGenerationService: fill ${fillAttempt} falló (${err.message}).`,
+        );
+      }
+    }
+
+    if (collected.length === 0) {
+      throw new Error("No se pudieron generar preguntas válidas.");
+    }
     if (collected.length < quantity) {
-      throw new Error(
-        `No se pudieron generar ${quantity} preguntas válidas. Se generaron ${collected.length}.`,
+      console.warn(
+        `QuizGenerationService: se generaron ${collected.length}/${quantity} preguntas.`,
       );
     }
 
     const finalQuestions = collected.slice(0, quantity);
-    return this.enhanceQuizExplanations(content, finalQuestions);
+    return finalQuestions;
   }
 }
 

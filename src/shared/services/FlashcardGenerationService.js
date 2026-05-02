@@ -105,6 +105,7 @@ REGLAS OBLIGATORIAS:
 
     const collected = [];
     const seenQuestions = new Set();
+    const maxAttempts = quantity >= 8 ? 2 : this.MAX_GENERATION_ATTEMPTS;
 
     // Extract question texts from existing questions (max 20 to avoid prompt bloat)
     const existingQuestionTexts = existingQuestions
@@ -114,45 +115,43 @@ REGLAS OBLIGATORIAS:
 
     for (
       let attempt = 1;
-      attempt <= this.MAX_GENERATION_ATTEMPTS && collected.length < quantity;
+      attempt <= maxAttempts && collected.length < quantity;
       attempt += 1
     ) {
       const remaining = quantity - collected.length;
-      const requestQuantity = Math.min(remaining + 2, 5);
+      const requestQuantity = Math.min(remaining + 1, 10);
       const excluded = Array.from(seenQuestions).concat(existingQuestionTexts);
-
-      const response = await this.createChatCompletion({
-        messages: this.buildFlashcardGenerationMessages(
-          documentContent,
-          requestQuantity,
-          excluded,
-        ),
-        preferredModel: this.qualityModel,
-        fallbackModel: this.fastModel,
-        temperature: attempt === 1 ? 0.55 : 0.7,
-        max_completion_tokens: 3000,
-        frequency_penalty: 0.4,
-        presence_penalty: 0.25,
-        responseFormat: { type: "json_object" },
-        stream: false,
-      });
-
-      const payload = this.parseJsonPayload(
-        response.choices[0].message.content,
-      );
-      const rawFlashcards = Array.isArray(payload)
-        ? payload
-        : payload.flashcards || [payload];
 
       let normalizedBatch = [];
       try {
+        const response = await this.createChatCompletion({
+          messages: this.buildFlashcardGenerationMessages(
+            documentContent,
+            requestQuantity,
+            excluded,
+          ),
+          preferredModel: this.fastModel,
+          fallbackModel: this.fastModel,
+          temperature: attempt === 1 ? 0.55 : 0.7,
+          max_completion_tokens: 2200,
+          frequency_penalty: 0.4,
+          presence_penalty: 0.25,
+          responseFormat: { type: "json_object" },
+          stream: false,
+        });
+        const payload = this.parseJsonPayload(
+          response.choices[0].message.content,
+        );
+        const rawFlashcards = Array.isArray(payload)
+          ? payload
+          : payload.flashcards || [payload];
         normalizedBatch = this.sanitizeFlashcards(
           rawFlashcards,
           requestQuantity,
         );
       } catch (error) {
         console.warn(
-          `FlashcardGenerationService: intento ${attempt} sin flashcards válidas, reintentando...`,
+          `FlashcardGenerationService: intento ${attempt} falló (${error.message}), continuando...`,
         );
         continue;
       }
@@ -164,7 +163,7 @@ REGLAS OBLIGATORIAS:
         // Additional deduplication check against existing questions
         if (
           existingQuestionTexts.some((existing) =>
-            TextDeduplication.isSimilar(flashcard.question, existing, 70),
+            TextDeduplication.isSimilar(flashcard.question, existing, 92),
           )
         ) {
           console.debug(
@@ -180,9 +179,46 @@ REGLAS OBLIGATORIAS:
       }
     }
 
-    if (collected.length < quantity) {
+    // Last resort: if everything was filtered as similar, run one final attempt
+    // without the similarity filter so we always return something.
+    if (collected.length === 0 && existingQuestionTexts.length > 0) {
+      console.warn(
+        `FlashcardGenerationService: todas las preguntas fueron filtradas. Ejecutando intento final sin filtro de similitud...`,
+      );
+      try {
+        const response = await this.createChatCompletion({
+          messages: this.buildFlashcardGenerationMessages(
+            documentContent,
+            quantity,
+            existingQuestionTexts,
+          ),
+          preferredModel: this.fastModel,
+          fallbackModel: this.fastModel,
+          temperature: 0.85,
+          max_completion_tokens: 3000,
+          frequency_penalty: 0.6,
+          presence_penalty: 0.4,
+          responseFormat: { type: "json_object" },
+          stream: false,
+        });
+        const payload = this.parseJsonPayload(
+          response.choices[0].message.content,
+        );
+        const rawFlashcards = Array.isArray(payload)
+          ? payload
+          : payload.flashcards || [payload];
+        const lastResort = this.sanitizeFlashcards(rawFlashcards, quantity);
+        collected.push(...lastResort);
+      } catch (err) {
+        console.warn(
+          `FlashcardGenerationService: intento final también falló (${err.message}).`,
+        );
+      }
+    }
+
+    if (collected.length === 0) {
       throw new Error(
-        `No se pudieron generar ${quantity} flashcards válidas. Se generaron ${collected.length}.`,
+        `No se pudieron generar flashcards válidas tras ${this.MAX_GENERATION_ATTEMPTS} intentos.`,
       );
     }
 

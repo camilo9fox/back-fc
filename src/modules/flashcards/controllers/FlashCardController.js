@@ -28,7 +28,10 @@ class FlashCardController {
   _validateAndExtractInput(req) {
     const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
     const file = req.file || null;
-    const quantity = Number.parseInt(req.body.quantity, 10) || 1;
+    const quantity = Math.min(
+      Math.max(Number.parseInt(req.body.quantity, 10) || 1, 1),
+      10,
+    );
     const categoryId = req.body.categoryId || null;
 
     if (!file && !text) {

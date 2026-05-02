@@ -146,7 +146,7 @@ class QuizController {
         type: "quiz-generation",
         metadata: {
           title,
-          quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 20),
+          quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 10),
           fileName: file?.originalname || null,
           inputMode: file ? "file" : "text",
         },
@@ -166,7 +166,7 @@ class QuizController {
             text,
             title,
             categoryId,
-            quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 20),
+            quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 10),
             userId,
             onProgress: (progress) => {
               this.generationJobService.updateJob(job.id, userId, {
@@ -220,7 +220,7 @@ class QuizController {
         text,
         title,
         categoryId,
-        quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 20),
+        quantity: Math.min(Math.max(parseInt(quantity) || 5, 1), 10),
         userId,
       });
 
