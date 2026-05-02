@@ -5,8 +5,9 @@ const { AppError } = require("../../../shared/errors/AppError");
  * Single Responsibility: translates HTTP ↔ service calls only.
  */
 class StatsController {
-  constructor(statsService) {
+  constructor(statsService, aiUsageService) {
     this.statsService = statsService;
+    this.aiUsageService = aiUsageService;
   }
 
   async getStats(req, res) {
@@ -18,6 +19,20 @@ class StatsController {
 
       const stats = await this.statsService.getStats(userId);
       res.json(stats);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async getAiUsage(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const usage = await this.aiUsageService.getStatus(userId);
+      res.json(usage);
     } catch (error) {
       this._handleError(error, res);
     }

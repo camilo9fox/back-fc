@@ -4,7 +4,7 @@ const config = require("../../../shared/config/config");
 const { authMiddleware } = require("../../../shared/middleware/auth");
 const { perUserApiLimiter } = require("../../../shared/middleware/rateLimiter");
 
-function createFlashCardRouter(flashCardController) {
+function createFlashCardRouter(flashCardController, aiUsageMiddleware) {
   const router = express.Router();
 
   // Configure multer for file uploads with size limits
@@ -29,6 +29,7 @@ function createFlashCardRouter(flashCardController) {
   router.post(
     "/generate-flashcard",
     authMiddleware,
+    aiUsageMiddleware,
     perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCard(req, res),
@@ -37,6 +38,7 @@ function createFlashCardRouter(flashCardController) {
   router.post(
     "/generate-flashcards",
     authMiddleware,
+    aiUsageMiddleware,
     perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCards(req, res),
@@ -45,6 +47,7 @@ function createFlashCardRouter(flashCardController) {
   router.post(
     "/generate-flashcards-async",
     authMiddleware,
+    aiUsageMiddleware,
     perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCardsAsync(req, res),

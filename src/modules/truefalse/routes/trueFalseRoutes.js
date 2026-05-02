@@ -3,7 +3,7 @@ const multer = require("multer");
 const config = require("../../../shared/config/config");
 const { authMiddleware } = require("../../../shared/middleware/auth");
 
-function createTrueFalseRouter(controller) {
+function createTrueFalseRouter(controller, aiUsageMiddleware) {
   const router = express.Router();
 
   const upload = multer({
@@ -23,12 +23,18 @@ function createTrueFalseRouter(controller) {
 
   router.use(authMiddleware);
 
-  router.post("/generate", upload.single("file"), (req, res) =>
-    controller.generateSet(req, res),
+  router.post(
+    "/generate",
+    aiUsageMiddleware,
+    upload.single("file"),
+    (req, res) => controller.generateSet(req, res),
   );
 
-  router.post("/generate-async", upload.single("file"), (req, res) =>
-    controller.generateSetAsync(req, res),
+  router.post(
+    "/generate-async",
+    aiUsageMiddleware,
+    upload.single("file"),
+    (req, res) => controller.generateSetAsync(req, res),
   );
 
   router.get("/generation-jobs/:jobId", (req, res) =>

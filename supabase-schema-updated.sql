@@ -41,6 +41,8 @@ DROP POLICY IF EXISTS "Read tf questions of own or public set"       ON true_fal
 -- Policies for these are dropped automatically via CASCADE
 DROP TABLE IF EXISTS game_scores          CASCADE;
 DROP TABLE IF EXISTS flashcard_reviews    CASCADE;
+DROP TABLE IF EXISTS generation_jobs      CASCADE;
+DROP TABLE IF EXISTS ai_user_quotas       CASCADE;
 
 -- Attempt tables first (no child dependencies)
 DROP TABLE IF EXISTS quiz_attempts        CASCADE;
@@ -60,6 +62,7 @@ DROP TABLE IF EXISTS categories       CASCADE;
 
 -- Triggers are dropped automatically with their tables via CASCADE.
 -- Drop the shared trigger function last.
+DROP FUNCTION IF EXISTS consume_ai_credits(UUID, INTEGER, INTEGER, INTEGER, INTEGER);
 DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 
 -- ────────────────────────────────────────────
@@ -495,8 +498,195 @@ ALTER TABLE generation_jobs ENABLE ROW LEVEL SECURITY;
 
 -- Jobs are accessed server-side with the service role key, so RLS is a
 -- safety net: users should never reach this table directly from the browser.
+DROP POLICY IF EXISTS "Users can read their own jobs" ON generation_jobs;
 CREATE POLICY "Users can read their own jobs"
   ON generation_jobs FOR SELECT USING (auth.uid() = user_id);
 
 -- v5 ? v6 upgrade note
 -- =============================================================
+
+-- =============================================================
+-- v6 -> v7: AI credits and quota enforcement
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS ai_user_quotas (
+  user_id            UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  period_start       DATE NOT NULL DEFAULT CURRENT_DATE,
+  credits_used       INTEGER NOT NULL DEFAULT 0 CHECK (credits_used >= 0),
+  credits_limit      INTEGER NOT NULL DEFAULT 30 CHECK (credits_limit > 0),
+  burst_window_start TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  burst_used         INTEGER NOT NULL DEFAULT 0 CHECK (burst_used >= 0),
+  burst_limit        INTEGER NOT NULL DEFAULT 3 CHECK (burst_limit > 0),
+  last_request_at    TIMESTAMP WITH TIME ZONE,
+  created_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_user_quotas_updated_at ON ai_user_quotas(updated_at DESC);
+
+CREATE TRIGGER update_ai_user_quotas_updated_at
+  BEFORE UPDATE ON ai_user_quotas
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE ai_user_quotas ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read their own ai quotas" ON ai_user_quotas;
+CREATE POLICY "Users can read their own ai quotas"
+  ON ai_user_quotas FOR SELECT USING (auth.uid() = user_id);
+
+DROP FUNCTION IF EXISTS consume_ai_credits(UUID, INTEGER, INTEGER, INTEGER, INTEGER);
+
+CREATE OR REPLACE FUNCTION consume_ai_credits(
+  p_user_id UUID,
+  p_credits INTEGER,
+  p_daily_limit INTEGER,
+  p_burst_window_seconds INTEGER,
+  p_burst_limit INTEGER
+)
+RETURNS TABLE (
+  allowed BOOLEAN,
+  reason TEXT,
+  daily_limit INTEGER,
+  credits_used INTEGER,
+  credits_remaining INTEGER,
+  period_start DATE,
+  period_end TIMESTAMP WITH TIME ZONE,
+  burst_limit INTEGER,
+  burst_used INTEGER,
+  burst_window_reset_at TIMESTAMP WITH TIME ZONE,
+  retry_after_seconds INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_now TIMESTAMP WITH TIME ZONE := NOW();
+  v_row ai_user_quotas%ROWTYPE;
+  v_window_end TIMESTAMP WITH TIME ZONE;
+  v_retry_seconds INTEGER := 0;
+BEGIN
+  IF p_user_id IS NULL THEN
+    RAISE EXCEPTION 'p_user_id is required';
+  END IF;
+
+  IF p_credits IS NULL OR p_credits <= 0 THEN
+    RAISE EXCEPTION 'p_credits must be > 0';
+  END IF;
+
+  IF p_daily_limit IS NULL OR p_daily_limit <= 0 THEN
+    RAISE EXCEPTION 'p_daily_limit must be > 0';
+  END IF;
+
+  IF p_burst_window_seconds IS NULL OR p_burst_window_seconds <= 0 THEN
+    RAISE EXCEPTION 'p_burst_window_seconds must be > 0';
+  END IF;
+
+  IF p_burst_limit IS NULL OR p_burst_limit <= 0 THEN
+    RAISE EXCEPTION 'p_burst_limit must be > 0';
+  END IF;
+
+  INSERT INTO ai_user_quotas (
+    user_id,
+    period_start,
+    credits_used,
+    credits_limit,
+    burst_window_start,
+    burst_used,
+    burst_limit,
+    last_request_at
+  )
+  VALUES (
+    p_user_id,
+    CURRENT_DATE,
+    0,
+    p_daily_limit,
+    v_now,
+    0,
+    p_burst_limit,
+    NULL
+  )
+  ON CONFLICT (user_id) DO NOTHING;
+
+  SELECT * INTO v_row
+  FROM ai_user_quotas
+  WHERE user_id = p_user_id
+  FOR UPDATE;
+
+  IF v_row.period_start <> CURRENT_DATE THEN
+    v_row.period_start := CURRENT_DATE;
+    v_row.credits_used := 0;
+  END IF;
+
+  v_row.credits_limit := p_daily_limit;
+  v_row.burst_limit := p_burst_limit;
+
+  IF v_row.burst_window_start IS NULL
+     OR v_row.burst_window_start + make_interval(secs => p_burst_window_seconds) <= v_now THEN
+    v_row.burst_window_start := v_now;
+    v_row.burst_used := 0;
+  END IF;
+
+  v_window_end := v_row.burst_window_start + make_interval(secs => p_burst_window_seconds);
+
+  IF v_row.credits_used + p_credits > v_row.credits_limit THEN
+    RETURN QUERY
+    SELECT
+      FALSE,
+      'daily_limit',
+      v_row.credits_limit,
+      v_row.credits_used,
+      GREATEST(v_row.credits_limit - v_row.credits_used, 0),
+      v_row.period_start,
+      (v_row.period_start + INTERVAL '1 day')::timestamptz,
+      v_row.burst_limit,
+      v_row.burst_used,
+      v_window_end,
+      0;
+    RETURN;
+  END IF;
+
+  IF v_row.burst_used + 1 > v_row.burst_limit THEN
+    v_retry_seconds := GREATEST(CEIL(EXTRACT(EPOCH FROM (v_window_end - v_now)))::INTEGER, 1);
+
+    RETURN QUERY
+    SELECT
+      FALSE,
+      'burst_limit',
+      v_row.credits_limit,
+      v_row.credits_used,
+      GREATEST(v_row.credits_limit - v_row.credits_used, 0),
+      v_row.period_start,
+      (v_row.period_start + INTERVAL '1 day')::timestamptz,
+      v_row.burst_limit,
+      v_row.burst_used,
+      v_window_end,
+      v_retry_seconds;
+    RETURN;
+  END IF;
+
+  UPDATE ai_user_quotas
+  SET
+    period_start = v_row.period_start,
+    credits_used = v_row.credits_used + p_credits,
+    credits_limit = v_row.credits_limit,
+    burst_window_start = v_row.burst_window_start,
+    burst_used = v_row.burst_used + 1,
+    burst_limit = v_row.burst_limit,
+    last_request_at = v_now,
+    updated_at = v_now
+  WHERE user_id = p_user_id;
+
+  RETURN QUERY
+  SELECT
+    TRUE,
+    'ok',
+    v_row.credits_limit,
+    v_row.credits_used + p_credits,
+    GREATEST(v_row.credits_limit - (v_row.credits_used + p_credits), 0),
+    v_row.period_start,
+    (v_row.period_start + INTERVAL '1 day')::timestamptz,
+    v_row.burst_limit,
+    v_row.burst_used + 1,
+    v_window_end,
+    0;
+END;
+$$;

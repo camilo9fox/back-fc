@@ -44,6 +44,22 @@ CREATE POLICY "Users can insert their own flashcards" ON flashcards
 CREATE POLICY "Users can update their own flashcards" ON flashcards
     FOR UPDATE USING (auth.uid() = user_id);
 
--- Create policy for users to delete their own flashcards
 CREATE POLICY "Users can delete their own flashcards" ON flashcards
     FOR DELETE USING (auth.uid() = user_id);
+
+-- =============================================================
+-- AI credits and quota enforcement
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS ai_user_quotas (
+    user_id            UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    period_start       DATE NOT NULL DEFAULT CURRENT_DATE,
+    credits_used       INTEGER NOT NULL DEFAULT 0 CHECK (credits_used >= 0),
+    credits_limit      INTEGER NOT NULL DEFAULT 30 CHECK (credits_limit > 0),
+    burst_window_start TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    burst_used         INTEGER NOT NULL DEFAULT 0 CHECK (burst_used >= 0),
+    burst_limit        INTEGER NOT NULL DEFAULT 3 CHECK (burst_limit > 0),
+    last_request_at    TIMESTAMP WITH TIME ZONE,
+    created_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);

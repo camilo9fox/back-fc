@@ -46,6 +46,13 @@ class ServiceUnavailableError extends AppError {
   }
 }
 
+/** 429 — request/quota limit reached */
+class TooManyRequestsError extends AppError {
+  constructor(message) {
+    super(message, 429);
+  }
+}
+
 module.exports = {
   AppError,
   ValidationError,
@@ -53,4 +60,5 @@ module.exports = {
   ConflictError,
   AuthenticationError,
   ServiceUnavailableError,
+  TooManyRequestsError,
 };

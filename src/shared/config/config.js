@@ -41,6 +41,18 @@ const config = {
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     anonKey: process.env.SUPABASE_ANON_KEY,
   },
+  aiUsage: {
+    enabled: String(process.env.AI_USAGE_ENABLED || "true") !== "false",
+    dailyCredits: Number(process.env.AI_DAILY_CREDITS) || 30,
+    burstWindowSeconds: Number(process.env.AI_BURST_WINDOW_SECONDS) || 300,
+    burstLimit: Number(process.env.AI_BURST_LIMIT) || 3,
+    costs: {
+      flashcards: Number(process.env.AI_COST_FLASHCARDS) || 1,
+      quizzes: Number(process.env.AI_COST_QUIZZES) || 1,
+      truefalse: Number(process.env.AI_COST_TRUEFALSE) || 1,
+      studyguides: Number(process.env.AI_COST_STUDYGUIDES) || 2,
+    },
+  },
 };
 
 module.exports = config;

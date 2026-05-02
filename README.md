@@ -47,9 +47,46 @@ GROQ_QUALITY_MODEL=llama-3.3-70b-versatile
 
 # Reintentos por modelo antes de pasar al siguiente en errores de limite
 GROQ_RATE_LIMIT_RETRIES_PER_MODEL=2
+
+# Sistema de creditos/cuotas IA (backend)
+AI_USAGE_ENABLED=true
+AI_DAILY_CREDITS=30
+AI_BURST_WINDOW_SECONDS=300
+AI_BURST_LIMIT=3
+AI_COST_FLASHCARDS=1
+AI_COST_QUIZZES=1
+AI_COST_TRUEFALSE=1
 ```
 
 Importante: el fallback en cadena solo se activa para errores de limite. Errores de validacion/payload siguen devolviendose de inmediato.
+
+### Estado de creditos IA
+
+Con usuario autenticado, puedes consultar el estado actual en:
+
+```http
+GET /api/stats/ai-usage
+```
+
+Respuesta ejemplo:
+
+```json
+{
+  "enabled": true,
+  "creditsUsed": 4,
+  "creditsLimit": 30,
+  "creditsRemaining": 26,
+  "burstUsed": 1,
+  "burstLimit": 3,
+  "periodStart": "2026-05-02T00:00:00.000Z",
+  "periodEnd": "2026-05-03T00:00:00.000Z",
+  "costs": {
+    "flashcards": 1,
+    "quizzes": 1,
+    "truefalse": 1
+  }
+}
+```
 
 ## Uso
 

@@ -92,6 +92,26 @@ class Container {
       return new GenerationJobService(c.get("generationJobRepository"));
     });
 
+    container.register("aiUsageRepository", () => {
+      const SupabaseAiUsageRepository = require("./shared/repositories/implementations/SupabaseAiUsageRepository");
+      return new SupabaseAiUsageRepository();
+    });
+
+    container.register("aiUsageService", (c) => {
+      const AiUsageService = require("./shared/services/AiUsageService");
+      return new AiUsageService(c.get("aiUsageRepository"));
+    });
+
+    container.register("aiUsageMiddlewareFactory", (c) => {
+      const {
+        createAiUsageQuotaMiddleware,
+      } = require("./shared/middleware/aiUsageQuota");
+      return {
+        forAction: (action) =>
+          createAiUsageQuotaMiddleware(c.get("aiUsageService"), action),
+      };
+    });
+
     container.register("flashCardService", (c) => {
       const FlashCardService = require("./modules/flashcards/services/FlashCardService");
       return new FlashCardService(
@@ -158,7 +178,10 @@ class Container {
 
     container.register("flashCardRoutes", (c) => {
       const createFlashCardRouter = require("./modules/flashcards/routes/flashCardRoutes");
-      return createFlashCardRouter(c.get("flashCardController"));
+      return createFlashCardRouter(
+        c.get("flashCardController"),
+        c.get("aiUsageMiddlewareFactory").forAction("flashcards"),
+      );
     });
 
     // Category services
@@ -209,7 +232,10 @@ class Container {
 
     container.register("quizRoutes", (c) => {
       const createQuizRouter = require("./modules/quizzes/routes/quizRoutes");
-      return createQuizRouter(c.get("quizController"));
+      return createQuizRouter(
+        c.get("quizController"),
+        c.get("aiUsageMiddlewareFactory").forAction("quizzes"),
+      );
     });
 
     // True/False services
@@ -239,7 +265,10 @@ class Container {
 
     container.register("trueFalseRoutes", (c) => {
       const createTrueFalseRouter = require("./modules/truefalse/routes/trueFalseRoutes");
-      return createTrueFalseRouter(c.get("trueFalseController"));
+      return createTrueFalseRouter(
+        c.get("trueFalseController"),
+        c.get("aiUsageMiddlewareFactory").forAction("truefalse"),
+      );
     });
 
     // Study Guide services
@@ -293,7 +322,10 @@ class Container {
 
     container.register("statsController", (c) => {
       const StatsController = require("./modules/stats/controllers/StatsController");
-      return new StatsController(c.get("statsService"));
+      return new StatsController(
+        c.get("statsService"),
+        c.get("aiUsageService"),
+      );
     });
 
     container.register("statsRoutes", (c) => {

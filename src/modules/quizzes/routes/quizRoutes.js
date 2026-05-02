@@ -3,7 +3,7 @@ const multer = require("multer");
 const config = require("../../../shared/config/config");
 const { authMiddleware } = require("../../../shared/middleware/auth");
 
-function createQuizRouter(controller) {
+function createQuizRouter(controller, aiUsageMiddleware) {
   const router = express.Router();
 
   const upload = multer({
@@ -23,12 +23,18 @@ function createQuizRouter(controller) {
 
   router.use(authMiddleware);
 
-  router.post("/generate", upload.single("file"), (req, res) =>
-    controller.generateQuiz(req, res),
+  router.post(
+    "/generate",
+    aiUsageMiddleware,
+    upload.single("file"),
+    (req, res) => controller.generateQuiz(req, res),
   );
 
-  router.post("/generate-async", upload.single("file"), (req, res) =>
-    controller.generateQuizAsync(req, res),
+  router.post(
+    "/generate-async",
+    aiUsageMiddleware,
+    upload.single("file"),
+    (req, res) => controller.generateQuizAsync(req, res),
   );
 
   router.get("/generation-jobs/:jobId", (req, res) =>

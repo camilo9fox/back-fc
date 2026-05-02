@@ -7,6 +7,7 @@ function createStatsRouter(statsController) {
   router.use(authMiddleware);
 
   router.get("/", (req, res) => statsController.getStats(req, res));
+  router.get("/ai-usage", (req, res) => statsController.getAiUsage(req, res));
 
   return router;
 }
