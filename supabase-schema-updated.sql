@@ -48,16 +48,21 @@ DROP TABLE IF EXISTS ai_user_quotas       CASCADE;
 DROP TABLE IF EXISTS quiz_attempts        CASCADE;
 DROP TABLE IF EXISTS true_false_attempts  CASCADE;
 DROP TABLE IF EXISTS flashcard_sessions   CASCADE;
+DROP TABLE IF EXISTS exam_simulation_attempts CASCADE;
 
 -- Questions / child tables (depend on parent tables)
 DROP TABLE IF EXISTS true_false_questions CASCADE;
 DROP TABLE IF EXISTS quiz_questions       CASCADE;
+DROP TABLE IF EXISTS exam_simulation_truefalse_questions CASCADE;
+DROP TABLE IF EXISTS exam_simulation_multiple_choice_questions CASCADE;
+DROP TABLE IF EXISTS exam_simulation_development_questions CASCADE;
 DROP TABLE IF EXISTS flashcards           CASCADE;
 DROP TABLE IF EXISTS study_guides         CASCADE;
 
 -- Parent tables
 DROP TABLE IF EXISTS true_false_sets CASCADE;
 DROP TABLE IF EXISTS quizzes          CASCADE;
+DROP TABLE IF EXISTS exam_simulations CASCADE;
 DROP TABLE IF EXISTS categories       CASCADE;
 
 -- Triggers are dropped automatically with their tables via CASCADE.
@@ -273,6 +278,236 @@ CREATE POLICY "Users can delete their tf questions" ON true_false_questions
     FOR DELETE USING (
       EXISTS (SELECT 1 FROM true_false_sets s WHERE s.id = set_id AND s.user_id = auth.uid())
     );
+
+-- ────────────────────────────────────────────
+-- EXAM SIMULATIONS (Mixed V/F + Development)
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS exam_simulations (
+  id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  category_id      UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  title            VARCHAR(255) NOT NULL,
+  description      TEXT,
+  duration_minutes INTEGER NOT NULL DEFAULT 45 CHECK (duration_minutes BETWEEN 10 AND 300),
+  is_public        BOOLEAN NOT NULL DEFAULT false,
+  created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_simulations_user_id ON exam_simulations(user_id);
+CREATE INDEX IF NOT EXISTS idx_exam_simulations_category_id ON exam_simulations(category_id);
+CREATE INDEX IF NOT EXISTS idx_exam_simulations_created_at ON exam_simulations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_exam_simulations_public ON exam_simulations(created_at DESC)
+  WHERE is_public = true;
+
+CREATE TRIGGER update_exam_simulations_updated_at
+  BEFORE UPDATE ON exam_simulations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE exam_simulations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Read own or public exam simulations" ON exam_simulations;
+DROP POLICY IF EXISTS "Users can insert their own exam simulations" ON exam_simulations;
+DROP POLICY IF EXISTS "Users can update their own exam simulations" ON exam_simulations;
+DROP POLICY IF EXISTS "Users can delete their own exam simulations" ON exam_simulations;
+
+CREATE POLICY "Read own or public exam simulations"
+  ON exam_simulations FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+CREATE POLICY "Users can insert their own exam simulations"
+  ON exam_simulations FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own exam simulations"
+  ON exam_simulations FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own exam simulations"
+  ON exam_simulations FOR DELETE USING (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS exam_simulation_truefalse_questions (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  simulation_id UUID NOT NULL REFERENCES exam_simulations(id) ON DELETE CASCADE,
+  statement   TEXT NOT NULL,
+  is_true     BOOLEAN NOT NULL,
+  explanation TEXT,
+  order_index INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_sim_tf_questions_simulation_id
+  ON exam_simulation_truefalse_questions(simulation_id);
+CREATE INDEX IF NOT EXISTS idx_exam_sim_tf_questions_order
+  ON exam_simulation_truefalse_questions(simulation_id, order_index);
+
+ALTER TABLE exam_simulation_truefalse_questions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Read exam simulation tf questions" ON exam_simulation_truefalse_questions;
+DROP POLICY IF EXISTS "Users can insert exam simulation tf questions" ON exam_simulation_truefalse_questions;
+DROP POLICY IF EXISTS "Users can update exam simulation tf questions" ON exam_simulation_truefalse_questions;
+DROP POLICY IF EXISTS "Users can delete exam simulation tf questions" ON exam_simulation_truefalse_questions;
+
+CREATE POLICY "Read exam simulation tf questions"
+  ON exam_simulation_truefalse_questions FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND (s.user_id = auth.uid() OR s.is_public = true)
+    )
+  );
+
+CREATE POLICY "Users can insert exam simulation tf questions"
+  ON exam_simulation_truefalse_questions FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update exam simulation tf questions"
+  ON exam_simulation_truefalse_questions FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete exam simulation tf questions"
+  ON exam_simulation_truefalse_questions FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE TABLE IF NOT EXISTS exam_simulation_multiple_choice_questions (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  simulation_id  UUID NOT NULL REFERENCES exam_simulations(id) ON DELETE CASCADE,
+  question       TEXT NOT NULL,
+  options        JSONB NOT NULL,
+  correct_answer TEXT NOT NULL,
+  explanation    TEXT,
+  order_index    INTEGER NOT NULL DEFAULT 0,
+  created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_sim_mc_questions_simulation_id
+  ON exam_simulation_multiple_choice_questions(simulation_id);
+CREATE INDEX IF NOT EXISTS idx_exam_sim_mc_questions_order
+  ON exam_simulation_multiple_choice_questions(simulation_id, order_index);
+
+ALTER TABLE exam_simulation_multiple_choice_questions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Read exam simulation mc questions" ON exam_simulation_multiple_choice_questions;
+DROP POLICY IF EXISTS "Users can insert exam simulation mc questions" ON exam_simulation_multiple_choice_questions;
+DROP POLICY IF EXISTS "Users can update exam simulation mc questions" ON exam_simulation_multiple_choice_questions;
+DROP POLICY IF EXISTS "Users can delete exam simulation mc questions" ON exam_simulation_multiple_choice_questions;
+
+CREATE POLICY "Read exam simulation mc questions"
+  ON exam_simulation_multiple_choice_questions FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND (s.user_id = auth.uid() OR s.is_public = true)
+    )
+  );
+
+CREATE POLICY "Users can insert exam simulation mc questions"
+  ON exam_simulation_multiple_choice_questions FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update exam simulation mc questions"
+  ON exam_simulation_multiple_choice_questions FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete exam simulation mc questions"
+  ON exam_simulation_multiple_choice_questions FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE TABLE IF NOT EXISTS exam_simulation_development_questions (
+  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  simulation_id       UUID NOT NULL REFERENCES exam_simulations(id) ON DELETE CASCADE,
+  prompt              TEXT NOT NULL,
+  reference_answer    TEXT,
+  evaluation_criteria TEXT,
+  max_points          NUMERIC(6,2) NOT NULL DEFAULT 10 CHECK (max_points > 0),
+  order_index         INTEGER NOT NULL DEFAULT 0,
+  created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_sim_dev_questions_simulation_id
+  ON exam_simulation_development_questions(simulation_id);
+CREATE INDEX IF NOT EXISTS idx_exam_sim_dev_questions_order
+  ON exam_simulation_development_questions(simulation_id, order_index);
+
+ALTER TABLE exam_simulation_development_questions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Read exam simulation development questions" ON exam_simulation_development_questions;
+DROP POLICY IF EXISTS "Users can insert exam simulation development questions" ON exam_simulation_development_questions;
+DROP POLICY IF EXISTS "Users can update exam simulation development questions" ON exam_simulation_development_questions;
+DROP POLICY IF EXISTS "Users can delete exam simulation development questions" ON exam_simulation_development_questions;
+
+CREATE POLICY "Read exam simulation development questions"
+  ON exam_simulation_development_questions FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND (s.user_id = auth.uid() OR s.is_public = true)
+    )
+  );
+
+CREATE POLICY "Users can insert exam simulation development questions"
+  ON exam_simulation_development_questions FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update exam simulation development questions"
+  ON exam_simulation_development_questions FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete exam simulation development questions"
+  ON exam_simulation_development_questions FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM exam_simulations s
+      WHERE s.id = simulation_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE TABLE IF NOT EXISTS exam_simulation_attempts (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  simulation_id UUID NOT NULL REFERENCES exam_simulations(id) ON DELETE CASCADE,
+  score         NUMERIC(6,2) NOT NULL CHECK (score >= 0),
+  total_points  NUMERIC(8,2) NOT NULL CHECK (total_points > 0),
+  detail        JSONB,
+  submitted_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_sim_attempts_user_id ON exam_simulation_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_exam_sim_attempts_simulation_id ON exam_simulation_attempts(simulation_id);
+CREATE INDEX IF NOT EXISTS idx_exam_sim_attempts_submitted_at ON exam_simulation_attempts(user_id, submitted_at DESC);
+
+ALTER TABLE exam_simulation_attempts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read their own exam simulation attempts" ON exam_simulation_attempts;
+DROP POLICY IF EXISTS "Users can insert their own exam simulation attempts" ON exam_simulation_attempts;
+
+CREATE POLICY "Users can read their own exam simulation attempts"
+  ON exam_simulation_attempts FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own exam simulation attempts"
+  ON exam_simulation_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- =============================================================
 -- MIGRATION SCRIPT  (run this if upgrading from v1/v2/v3)

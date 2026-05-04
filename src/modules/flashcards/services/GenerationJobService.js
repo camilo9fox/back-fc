@@ -109,8 +109,17 @@ class GenerationJobService {
     });
   }
 
-  failJob(jobId, userId, error) {
-    return this.updateJob(jobId, userId, { status: "failed", error });
+  failJob(jobId, userId, error, progress) {
+    const patch = {
+      status: "failed",
+      error,
+    };
+
+    if (progress && typeof progress === "object") {
+      patch.progress = progress;
+    }
+
+    return this.updateJob(jobId, userId, patch);
   }
 
   _toPublic(job) {

@@ -51,6 +51,7 @@ const config = {
       quizzes: Number(process.env.AI_COST_QUIZZES) || 1,
       truefalse: Number(process.env.AI_COST_TRUEFALSE) || 1,
       studyguides: Number(process.env.AI_COST_STUDYGUIDES) || 2,
+      examsimulation: Number(process.env.AI_COST_EXAM_SIMULATION) || 2,
     },
   },
 };

@@ -257,6 +257,33 @@ class DocumentProcessingService {
       .trim();
   }
 
+  buildLocalFallbackNotes(chunk = "") {
+    const clean = String(chunk || "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!clean) {
+      return {
+        keyPoints: [],
+        definitions: [],
+        facts: [],
+        examples: [],
+      };
+    }
+
+    const sentences = (clean.match(/[^.!?\n]+[.!?]?/g) || [])
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 30)
+      .slice(0, 6);
+
+    return {
+      keyPoints: sentences.slice(0, 3),
+      definitions: [],
+      facts: sentences.slice(3, 5),
+      examples: [],
+    };
+  }
+
   combineStructuredNotes(results, limits = {}) {
     const keyPoints = new Map();
     const definitions = new Map();
@@ -538,8 +565,19 @@ class DocumentProcessingService {
     report("Extrayendo ideas clave", 20);
     const notes = await this.processChunksConcurrently(
       chunks,
-      async (chunk, index, totalChunks) =>
-        groqService.extractStudyNotes(chunk, { index, totalChunks }),
+      async (chunk, index, totalChunks) => {
+        try {
+          return await groqService.extractStudyNotes(chunk, {
+            index,
+            totalChunks,
+          });
+        } catch (error) {
+          console.warn(
+            `DocumentProcessingService: extractStudyNotes fallback on chunk ${index + 1}/${totalChunks} (${error.message})`,
+          );
+          return this.buildLocalFallbackNotes(chunk);
+        }
+      },
       {
         concurrency: Math.max(
           1,

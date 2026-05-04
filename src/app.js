@@ -32,6 +32,7 @@ function createApp() {
   const statsRoutes = container.get("statsRoutes");
   const attemptRoutes = container.get("attemptRoutes");
   const libraryRoutes = container.get("libraryRoutes");
+  const examSimulationRoutes = container.get("examSimulationRoutes");
   const createGamesRouter = require("./modules/games/gamesRoutes");
   const gamesRouter = createGamesRouter();
 
@@ -58,6 +59,7 @@ function createApp() {
 
   // AI generation rate limiter on expensive endpoints
   app.use("/api/study-guides/generate-async", aiGenerationLimiter);
+  app.use("/api/exam-simulations/generate-async", aiGenerationLimiter);
 
   app.use("/api/auth", authRoutes.getRouter());
   app.use("/api/flashcards", flashCardRoutes);
@@ -69,6 +71,7 @@ function createApp() {
   app.use("/api/attempts", attemptRoutes);
   app.use("/api/library", libraryRoutes);
   app.use("/api/games", gamesRouter);
+  app.use("/api/exam-simulations", examSimulationRoutes);
 
   app.use((error, req, res, next) => {
     if (error && error.code === "LIMIT_FILE_SIZE") {

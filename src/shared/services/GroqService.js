@@ -356,34 +356,87 @@ class GroqService {
   }
 
   async extractStudyNotes(chunk, { index, totalChunks }) {
-    const response = await this.createChatCompletion({
-      messages: [
-        {
-          role: "system",
-          content:
-            'Extrae conocimiento util para estudio y devuelvelo SOLO como JSON con esta forma: {"keyPoints":[],"definitions":[],"facts":[],"examples":[]}. Limita cada lista a maximo 4 items y cada item a una sola frase clara en espanol.',
-        },
-        {
-          role: "user",
-          content:
-            "Fragmento " + (index + 1) + " de " + totalChunks + ":\n\n" + chunk,
-        },
-      ],
-      preferredModel: this.fastModel,
-      temperature: 0.1,
-      max_completion_tokens: 600,
-      responseFormat: { type: "json_object" },
-      stream: false,
-    });
-    const payload = this.parseJsonPayload(response.choices[0].message.content);
-    return {
-      keyPoints: Array.isArray(payload.keyPoints) ? payload.keyPoints : [],
-      definitions: Array.isArray(payload.definitions)
+    const normalizeNotesPayload = (payload) => ({
+      keyPoints: Array.isArray(payload?.keyPoints) ? payload.keyPoints : [],
+      definitions: Array.isArray(payload?.definitions)
         ? payload.definitions
         : [],
-      facts: Array.isArray(payload.facts) ? payload.facts : [],
-      examples: Array.isArray(payload.examples) ? payload.examples : [],
-    };
+      facts: Array.isArray(payload?.facts) ? payload.facts : [],
+      examples: Array.isArray(payload?.examples) ? payload.examples : [],
+    });
+
+    const safeChunk = String(chunk || "").slice(0, 3600);
+
+    try {
+      const response = await this.createChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content:
+              'Extrae conocimiento util para estudio y devuelvelo SOLO como JSON con esta forma: {"keyPoints":[],"definitions":[],"facts":[],"examples":[]}. Limita cada lista a maximo 4 items y cada item a una sola frase clara en espanol.',
+          },
+          {
+            role: "user",
+            content:
+              "Fragmento " +
+              (index + 1) +
+              " de " +
+              totalChunks +
+              ":\n\n" +
+              safeChunk,
+          },
+        ],
+        preferredModel: this.fastModel,
+        temperature: 0.1,
+        max_completion_tokens: 750,
+        responseFormat: { type: "json_object" },
+        stream: false,
+      });
+
+      const payload = this.parseJsonPayload(
+        response.choices[0].message.content,
+      );
+      return normalizeNotesPayload(payload);
+    } catch (error) {
+      const rawMessage = String(error?.message || "");
+      const shouldRetryAsTextJson =
+        /json_validate_failed/i.test(rawMessage) ||
+        /Failed to generate JSON/i.test(rawMessage) ||
+        /max completion tokens reached/i.test(rawMessage);
+
+      if (!shouldRetryAsTextJson) {
+        throw error;
+      }
+
+      const response = await this.createChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content:
+              'Devuelve SOLO UNA linea de JSON minificado con esta forma exacta: {"keyPoints":[],"definitions":[],"facts":[],"examples":[]}. Maximo 3 items por arreglo. Cada item breve (menos de 20 palabras).',
+          },
+          {
+            role: "user",
+            content:
+              "Fragmento " +
+              (index + 1) +
+              " de " +
+              totalChunks +
+              ":\n\n" +
+              safeChunk,
+          },
+        ],
+        preferredModel: this.fastModel,
+        temperature: 0,
+        max_completion_tokens: 420,
+        stream: false,
+      });
+
+      const payload = this.parseJsonPayload(
+        response.choices[0].message.content,
+      );
+      return normalizeNotesPayload(payload);
+    }
   }
 
   async cleanOcrText(rawText) {

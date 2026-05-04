@@ -277,6 +277,11 @@ class Container {
       return new StudyGuideGenerationService(config.groqApiKey);
     });
 
+    container.register("examSimulationGenerationService", () => {
+      const ExamSimulationGenerationService = require("./shared/services/ExamSimulationGenerationService");
+      return new ExamSimulationGenerationService(config.groqApiKey);
+    });
+
     container.register("studyGuideRepository", () => {
       const SupabaseStudyGuideRepository = require("./modules/studyguides/repositories/implementations/SupabaseStudyGuideRepository");
       return new SupabaseStudyGuideRepository();
@@ -304,6 +309,40 @@ class Container {
     container.register("studyGuideRoutes", (c) => {
       const createStudyGuideRouter = require("./modules/studyguides/routes/studyGuideRoutes");
       return createStudyGuideRouter(c.get("studyGuideController"));
+    });
+
+    // Exam simulation
+    container.register("examSimulationRepository", () => {
+      const SupabaseExamSimulationRepository = require("./modules/examsim/repositories/implementations/SupabaseExamSimulationRepository");
+      return new SupabaseExamSimulationRepository();
+    });
+
+    container.register("examSimulationService", (c) => {
+      const ExamSimulationService = require("./modules/examsim/services/ExamSimulationService");
+      return new ExamSimulationService(
+        c.get("examSimulationRepository"),
+        c.get("categoryService"),
+        c.get("trueFalseGenerationService"),
+        c.get("examSimulationGenerationService"),
+        c.get("fileService"),
+        c.get("documentProcessingService"),
+      );
+    });
+
+    container.register("examSimulationController", (c) => {
+      const ExamSimulationController = require("./modules/examsim/controllers/ExamSimulationController");
+      return new ExamSimulationController(
+        c.get("examSimulationService"),
+        c.get("generationJobService"),
+      );
+    });
+
+    container.register("examSimulationRoutes", (c) => {
+      const createExamSimulationRouter = require("./modules/examsim/routes/examSimulationRoutes");
+      return createExamSimulationRouter(
+        c.get("examSimulationController"),
+        c.get("aiUsageMiddlewareFactory").forAction("examsimulation"),
+      );
     });
 
     // Stats
