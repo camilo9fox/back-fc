@@ -342,6 +342,109 @@ class ExamSimulationService {
     return Number(Math.max(0, Math.min(maxPoints, raw)).toFixed(2));
   }
 
+  normalizeForSemanticCompare(value = "") {
+    return String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  conceptAppearsInAnswer(answerText = "", concept = "") {
+    const answer = this.normalizeForSemanticCompare(answerText);
+    const target = this.normalizeForSemanticCompare(concept);
+    if (!answer || !target) return false;
+
+    // Phrase-level containment first, then token-level fallback.
+    if (answer.includes(target)) return true;
+    const tokens = target.split(" ").filter((token) => token.length >= 4);
+    if (tokens.length === 0) return false;
+
+    return tokens.every((token) => answer.includes(token));
+  }
+
+  extractRequiredConcepts(criteriaText = "") {
+    const criteria = String(criteriaText || "").trim();
+    if (!criteria) return [];
+
+    const normalized = this.normalizeForSemanticCompare(criteria);
+    if (!normalized) return [];
+
+    const match = normalized.match(
+      /(?:incluyendo|incluye|debe incluir|considera|con)\s+([a-z0-9\s,]+)$/i,
+    );
+
+    const source = match ? match[1] : normalized;
+    return source
+      .split(/,|\sy\s/)
+      .map((item) => item.trim())
+      .map((item) =>
+        item.replace(/^(la|el|los|las|un|una|unos|unas)\s+/i, "").trim(),
+      )
+      .filter((item) => item.length >= 6)
+      .slice(0, 6);
+  }
+
+  hasFullCriteriaCoverage(answerText = "", criteriaText = "") {
+    const requiredConcepts = this.extractRequiredConcepts(criteriaText);
+    if (requiredConcepts.length === 0) return false;
+
+    return requiredConcepts.every((concept) =>
+      this.conceptAppearsInAnswer(answerText, concept),
+    );
+  }
+
+  feedbackHasNegativeMissingClaim(feedbackText = "") {
+    const normalized = this.normalizeForSemanticCompare(feedbackText);
+    if (!normalized) return false;
+
+    return /(no incluye|no menciona|falta|faltan|ausente|carece|no aborda)/.test(
+      normalized,
+    );
+  }
+
+  buildSanitizedAiFeedback({
+    feedback,
+    contradictoryConcepts = [],
+    guardrailApplied = false,
+  }) {
+    const base = String(feedback || "").trim();
+    const hasContradictions = contradictoryConcepts.length > 0;
+
+    if (!hasContradictions && !guardrailApplied) {
+      return base || null;
+    }
+
+    const notes = [];
+    if (guardrailApplied) {
+      notes.push(
+        "Se aplico verificacion automatica adicional para evitar subcalificacion por falso negativo.",
+      );
+    }
+
+    if (hasContradictions) {
+      const preview = contradictoryConcepts
+        .slice(0, 3)
+        .map((concept) => String(concept || "").trim())
+        .filter(Boolean)
+        .join(", ");
+      if (preview) {
+        notes.push(`Se detecto que tu respuesta SI menciona: ${preview}.`);
+      }
+    }
+
+    const shouldReplaceBase =
+      hasContradictions && this.feedbackHasNegativeMissingClaim(base);
+    const merged = [shouldReplaceBase ? "" : base, ...notes]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    return merged || base || null;
+  }
+
   async scoreDevelopmentWithAi(questions = [], devAnswers = new Map()) {
     const baseBreakdown = (questions || []).map((question) => {
       const answer = devAnswers.get(String(question.id));
@@ -397,13 +500,72 @@ class ExamSimulationService {
         const ai = aiMap.get(String(item.questionId));
         if (!ai) return item;
 
+        const maxPoints = Number(item.maxPoints || 0);
+        const heuristicPoints = Number(item.points || 0);
+        const aiPointsRaw = Number(ai.points ?? heuristicPoints);
+        const aiPoints = Number.isFinite(aiPointsRaw)
+          ? Math.min(Math.max(aiPointsRaw, 0), maxPoints)
+          : heuristicPoints;
+
+        const heuristicRatio =
+          maxPoints > 0 ? Number(heuristicPoints) / maxPoints : 0;
+        const aiRatio = maxPoints > 0 ? Number(aiPoints) / maxPoints : 0;
+        const submittedLength = String(item.submittedText || "").trim().length;
+
+        const suspiciousZero =
+          aiPoints === 0 && submittedLength >= 60 && heuristicRatio >= 0.35;
+        const suspiciousGap =
+          submittedLength >= 90 &&
+          heuristicRatio >= 0.45 &&
+          aiRatio + 0.45 < heuristicRatio;
+
+        const guardrailPoints = Number(
+          Math.min(maxPoints, heuristicPoints * 0.85).toFixed(2),
+        );
+        const finalPoints =
+          suspiciousZero || suspiciousGap
+            ? Math.max(aiPoints, guardrailPoints)
+            : aiPoints;
+
+        const aiMissingConcepts = Array.isArray(ai.missingConcepts)
+          ? ai.missingConcepts
+          : [];
+        const contradictoryConcepts = aiMissingConcepts.filter((concept) =>
+          this.conceptAppearsInAnswer(item.submittedText, String(concept)),
+        );
+        const filteredMissingConcepts = aiMissingConcepts.filter(
+          (concept) =>
+            !this.conceptAppearsInAnswer(item.submittedText, String(concept)),
+        );
+
+        const guardrailApplied = suspiciousZero || suspiciousGap;
+        const fullCriteriaCovered = this.hasFullCriteriaCoverage(
+          item.submittedText,
+          item.criteria,
+        );
+        const perfectByCriteria =
+          fullCriteriaCovered &&
+          String(item.submittedText || "").trim().length >= 60;
+
+        const feedback = this.buildSanitizedAiFeedback({
+          feedback: ai.feedback || null,
+          contradictoryConcepts,
+          guardrailApplied: guardrailApplied || perfectByCriteria,
+        });
+
+        const scoreAfterCriteriaRule = perfectByCriteria
+          ? maxPoints
+          : finalPoints;
+
         return {
           ...item,
-          points: Number(ai.points ?? item.points),
-          aiFeedback: ai.feedback || null,
-          missingConcepts: ai.missingConcepts || [],
+          points: Number(scoreAfterCriteriaRule.toFixed(2)),
+          aiFeedback: feedback,
+          missingConcepts: filteredMissingConcepts,
           strengths: ai.strengths || [],
           gradingSource: "ai",
+          guardrailApplied: guardrailApplied || perfectByCriteria,
+          perfectCriteriaMatch: perfectByCriteria,
         };
       });
     } catch (error) {

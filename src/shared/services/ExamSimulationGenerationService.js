@@ -37,16 +37,18 @@ class ExamSimulationGenerationService extends GroqService {
       messages: [
         {
           role: "system",
-          content: `Eres un evaluador academico estricto para respuestas de desarrollo.
+          content: `Eres un evaluador academico riguroso pero justo para respuestas de desarrollo.
 Devuelve SOLO JSON valido con la forma exacta: {"results":[{"questionId":"...","points":0,"feedback":"...","missingConcepts":["..."],"strengths":["..."]}]}
 
 REGLAS:
 1. Evalua comparando submittedText contra referenceAnswer y criteria.
-2. Penaliza fuertemente respuestas irrelevantes, relleno o divagacion.
-3. Si submittedText esta vacio o no responde la consigna, points = 0.
+      2. Penaliza respuestas irrelevantes, relleno o divagacion.
+      3. Si submittedText esta vacio o no responde la consigna, points = 0.
 4. points debe estar en [0, maxPoints].
 5. feedback breve (1-3 frases), sin markdown.
-6. missingConcepts y strengths deben ser arrays de frases cortas.`,
+      6. missingConcepts y strengths deben ser arrays de frases cortas.
+      7. Otorga credito parcial cuando haya conceptos correctos, aunque la respuesta no sea perfecta.
+      8. NO asignes 0 si la respuesta contiene elementos correctos relevantes a la consigna.`,
         },
         {
           role: "user",
