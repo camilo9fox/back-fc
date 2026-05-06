@@ -445,6 +445,24 @@ class ExamSimulationService {
     return merged || base || null;
   }
 
+  softenFeedbackForHighScore(feedbackText = "", points = 0, maxPoints = 0) {
+    const base = String(feedbackText || "").trim();
+    if (!base || !Number.isFinite(maxPoints) || maxPoints <= 0) return base;
+
+    const ratio = Number(points) / Number(maxPoints);
+    if (ratio < 0.8) return base;
+
+    const normalized = this.normalizeForSemanticCompare(base);
+    const hasUndervaluingTone =
+      /(parcial|insuficiente|no responde|no se basa)/.test(normalized);
+
+    if (!hasUndervaluingTone) return base;
+
+    return ["Respuesta mayormente correcta y bien desarrollada.", base].join(
+      " ",
+    );
+  }
+
   async scoreDevelopmentWithAi(questions = [], devAnswers = new Map()) {
     const baseBreakdown = (questions || []).map((question) => {
       const answer = devAnswers.get(String(question.id));
@@ -557,10 +575,16 @@ class ExamSimulationService {
           ? maxPoints
           : finalPoints;
 
+        const softenedFeedback = this.softenFeedbackForHighScore(
+          feedback,
+          scoreAfterCriteriaRule,
+          maxPoints,
+        );
+
         return {
           ...item,
           points: Number(scoreAfterCriteriaRule.toFixed(2)),
-          aiFeedback: feedback,
+          aiFeedback: softenedFeedback,
           missingConcepts: filteredMissingConcepts,
           strengths: ai.strengths || [],
           gradingSource: "ai",

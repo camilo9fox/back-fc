@@ -5,6 +5,119 @@ class ExamSimulationGenerationService extends GroqService {
     super(apiKey);
   }
 
+  normalizeText(value = "") {
+    return String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  isWeakGeneratedDevelopmentItem(item = {}) {
+    const prompt = String(item.prompt || "").trim();
+    const reference = String(item.reference_answer || "").trim();
+    const criteria = String(item.evaluation_criteria || "").trim();
+    if (!prompt) return true;
+
+    const promptNormalized = this.normalizeText(prompt);
+    const referenceNormalized = this.normalizeText(reference);
+    const criteriaNormalized = this.normalizeText(criteria);
+
+    const asksImpact = /(como\s+afecta|impacta|influye|consecuencia)/.test(
+      promptNormalized,
+    );
+    const referenceMentionsImpact =
+      /(afecta|impacta|influye|consecuencia|aumenta|disminuye|perdida)/.test(
+        referenceNormalized,
+      );
+
+    return (
+      reference.length < 150 ||
+      criteria.length < 80 ||
+      !/(debe incluir|incluye|evalua|criterio)/.test(criteriaNormalized) ||
+      (asksImpact && !referenceMentionsImpact)
+    );
+  }
+
+  async repairDevelopmentItems(questions = []) {
+    const indexed = (Array.isArray(questions) ? questions : []).map(
+      (item, index) => ({ index, ...item }),
+    );
+
+    const weakItems = indexed.filter((item) =>
+      this.isWeakGeneratedDevelopmentItem(item),
+    );
+
+    if (weakItems.length === 0) return questions;
+
+    try {
+      const response = await this.createChatCompletion({
+        messages: [
+          {
+            role: "system",
+            content:
+              'Eres un corrector academico. Mejora SOLO reference_answer y evaluation_criteria para que sean completos y justos. Devuelve SOLO JSON con forma {"repairs":[{"index":0,"reference_answer":"...","evaluation_criteria":"..."}]}. Reglas: reference_answer debe responder toda la consigna (definicion + mecanismo + impacto cuando aplique), 6-10 lineas. evaluation_criteria debe ser verificable y explicita, con formato: "Debe incluir: ..." enumerando 3-6 criterios.',
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              weakItems: weakItems.map((item) => ({
+                index: item.index,
+                prompt: item.prompt,
+                reference_answer: item.reference_answer,
+                evaluation_criteria: item.evaluation_criteria,
+                max_points: item.max_points,
+              })),
+            }),
+          },
+        ],
+        preferredModel: this.fastModel,
+        fallbackModel: this.fastModel,
+        temperature: 0.2,
+        max_completion_tokens: 2200,
+        responseFormat: { type: "json_object" },
+        stream: false,
+      });
+
+      const payload = this.parseJsonPayload(
+        response.choices[0].message.content,
+      );
+      const repairs = Array.isArray(payload?.repairs) ? payload.repairs : [];
+      const repairMap = new Map(
+        repairs
+          .map((item) => {
+            const idx = Number(item?.index);
+            if (!Number.isInteger(idx)) return null;
+            return [idx, item];
+          })
+          .filter(Boolean),
+      );
+
+      return indexed.map((item) => {
+        const repair = repairMap.get(item.index);
+        if (!repair) return questions[item.index];
+
+        const referenceAnswer = String(repair.reference_answer || "").trim();
+        const criteria = String(repair.evaluation_criteria || "").trim();
+
+        return {
+          ...questions[item.index],
+          reference_answer:
+            referenceAnswer || questions[item.index].reference_answer || null,
+          evaluation_criteria:
+            criteria || questions[item.index].evaluation_criteria || null,
+        };
+      });
+    } catch (error) {
+      console.warn(
+        `ExamSimulationGenerationService: repairDevelopmentItems fallback (${error.message})`,
+      );
+      return questions;
+    }
+  }
+
   async evaluateDevelopmentAnswers(items = []) {
     const normalizedItems = (Array.isArray(items) ? items : [])
       .map((item) => {
@@ -41,14 +154,16 @@ class ExamSimulationGenerationService extends GroqService {
 Devuelve SOLO JSON valido con la forma exacta: {"results":[{"questionId":"...","points":0,"feedback":"...","missingConcepts":["..."],"strengths":["..."]}]}
 
 REGLAS:
-1. Evalua comparando submittedText contra referenceAnswer y criteria.
+      1. Evalua primero contra la consigna (prompt) y criterios; usa referenceAnswer solo como guia, no como techo.
       2. Penaliza respuestas irrelevantes, relleno o divagacion.
       3. Si submittedText esta vacio o no responde la consigna, points = 0.
 4. points debe estar en [0, maxPoints].
 5. feedback breve (1-3 frases), sin markdown.
       6. missingConcepts y strengths deben ser arrays de frases cortas.
       7. Otorga credito parcial cuando haya conceptos correctos, aunque la respuesta no sea perfecta.
-      8. NO asignes 0 si la respuesta contiene elementos correctos relevantes a la consigna.`,
+        8. NO asignes 0 si la respuesta contiene elementos correctos relevantes a la consigna.
+        9. Si submittedText es mas completo/correcto que referenceAnswer, NO penalices por exceder la referencia.
+        10. Solo incluye en missingConcepts elementos realmente ausentes en submittedText.`,
         },
         {
           role: "user",
@@ -124,8 +239,8 @@ REGLAS OBLIGATORIAS:
 1. Responde SOLO con JSON valido: {"questions":[...]}.
 2. Cada item debe tener EXACTAMENTE: prompt, reference_answer, evaluation_criteria, max_points.
 3. prompt debe ser claro y accionable.
-4. reference_answer debe ser una guia breve (3-6 lineas) para correccion.
-5. evaluation_criteria debe resumir que se evaluara.
+      4. reference_answer debe ser completa y util para correccion (6-10 lineas), respondiendo TODAS las partes de la consigna.
+      5. evaluation_criteria debe ser verificable y explicita, iniciando con "Debe incluir:" y listando 3-6 criterios observables.
 6. max_points entre 5 y 20.
 7. Espanol neutro, sin markdown ni texto extra.`,
         },
@@ -173,7 +288,7 @@ REGLAS OBLIGATORIAS:
       );
     }
 
-    return normalized;
+    return this.repairDevelopmentItems(normalized);
   }
 }
 
