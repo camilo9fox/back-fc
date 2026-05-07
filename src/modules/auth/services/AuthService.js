@@ -22,6 +22,12 @@ const ONBOARDING_SESSION_OPTIONS = new Set([
   "night",
   "flexible",
 ]);
+const REGISTRATION_METADATA_ALLOWLIST = new Set([
+  "full_name",
+  "avatar_url",
+  "locale",
+  "timezone",
+]);
 
 // In-memory blocklist for revoked refresh tokens.
 // Map<tokenHash, expiresAtMs> — entries are pruned every 30 min so the map
@@ -61,13 +67,15 @@ class AuthService {
       // Validate input
       this._validateEmail(email);
       this._validatePassword(password);
+      const safeMetadata = this._sanitizeRegistrationMetadata(metadata);
+      safeMetadata.tokenVersion = 0;
 
       // Create user in Supabase with plaintext password.
       // Supabase handles storage and hashing internally.
       const result = await this.authRepository.signUp(
         email,
         password,
-        metadata,
+        safeMetadata,
       );
 
       // Create default "General" category for the new user
@@ -79,7 +87,7 @@ class AuthService {
           userId: result.user.id,
         });
       } catch (categoryError) {
-        console.warn(
+        logger.warn(
           "Failed to create default category for user:",
           categoryError,
         );
@@ -145,12 +153,16 @@ class AuthService {
         throw new ValidationError(`Unsupported OAuth provider: ${provider}`);
       }
 
+      // Validate redirectTo against allowlist to prevent Open Redirect attacks.
+      // Only allow URLs that start with the configured frontend origin.
+      const safeRedirectTo = this._validateRedirectUrl(redirectTo);
+
       return await this.authRepository.signInWithOAuth(
         provider.toLowerCase(),
-        redirectTo,
+        safeRedirectTo,
       );
     } catch (error) {
-      console.error("AuthService.signInWithOAuth error:", error);
+      logger.error("AuthService.signInWithOAuth error:", error);
       throw error;
     }
   }
@@ -166,9 +178,12 @@ class AuthService {
         throw new ValidationError("User ID is required");
       }
 
+      // Persistently revoke all refresh tokens for the user.
+      await this._incrementTokenVersion(userId);
+
       return await this.authRepository.signOut(userId);
     } catch (error) {
-      console.error("AuthService.signOut error:", error);
+      logger.error("AuthService.signOut error:", error);
       throw error;
     }
   }
@@ -186,7 +201,7 @@ class AuthService {
 
       return await this.authRepository.getUserById(userId);
     } catch (error) {
-      console.error("AuthService.getUserById error:", error);
+      logger.error("AuthService.getUserById error:", error);
       throw error;
     }
   }
@@ -202,7 +217,7 @@ class AuthService {
 
       return await this.authRepository.resetPassword(email);
     } catch (error) {
-      console.error("AuthService.resetPassword error:", error);
+      logger.error("AuthService.resetPassword error:", error);
       throw error;
     }
   }
@@ -321,19 +336,37 @@ class AuthService {
         throw new ValidationError("User ID is required");
       }
 
+      if (!currentPassword) {
+        throw new ValidationError("Current password is required");
+      }
+
       this._validatePassword(newPassword);
 
-      // Verify current password by attempting sign in
+      // Verify the user exists and retrieve their email
       const user = await this.getUserById(userId);
       if (!user) {
         throw new NotFoundError("User not found");
       }
 
-      // For now, we'll just update the password directly
-      // In a production app, you'd want to verify the current password first
-      return await this.authRepository.updatePassword(userId, newPassword);
+      // Re-authenticate with current password to prove ownership before changing it
+      try {
+        await this.authRepository.signIn(user.email, currentPassword);
+      } catch {
+        throw new ValidationError("Current password is incorrect");
+      }
+
+      const updated = await this.authRepository.updatePassword(
+        userId,
+        newPassword,
+      );
+
+      // Revoke previous refresh tokens and sessions after password change.
+      await this._incrementTokenVersion(userId);
+      await this.authRepository.signOut(userId);
+
+      return updated;
     } catch (error) {
-      console.error("AuthService.updatePassword error:", error);
+      logger.error("AuthService.updatePassword error:", error);
       throw error;
     }
   }
@@ -351,7 +384,7 @@ class AuthService {
 
       return await this.authRepository.deleteAccount(userId);
     } catch (error) {
-      console.error("AuthService.deleteAccount error:", error);
+      logger.error("AuthService.deleteAccount error:", error);
       throw error;
     }
   }
@@ -379,7 +412,7 @@ class AuthService {
 
       return user;
     } catch (error) {
-      console.error("AuthService.verifyToken error:", error);
+      logger.error("AuthService.verifyToken error:", error);
       return null;
     }
   }
@@ -390,14 +423,20 @@ class AuthService {
    * @returns {{ accessToken: string, refreshToken: string }}
    */
   _generateTokens(user) {
+    const tokenVersion = this._getTokenVersion(user);
+
     const accessToken = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, tokenVersion },
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn },
     );
 
     const refreshToken = jwt.sign(
-      { userId: user.id },
+      {
+        userId: user.id,
+        tokenVersion,
+        jti: crypto.randomUUID(),
+      },
       config.jwt.refreshSecret,
       { expiresIn: config.jwt.refreshExpiresIn },
     );
@@ -437,6 +476,14 @@ class AuthService {
     const user = await this.authRepository.getUserById(decoded.userId);
     if (!user) {
       throw new NotFoundError("User not found");
+    }
+
+    const currentTokenVersion = this._getTokenVersion(user);
+    const tokenVersion = Number.isInteger(decoded.tokenVersion)
+      ? decoded.tokenVersion
+      : 0;
+    if (tokenVersion !== currentTokenVersion) {
+      throw new ValidationError("Refresh token has been revoked");
     }
 
     // Revoke the old refresh token (rotation) — store with its expiry time
@@ -638,6 +685,87 @@ class AuthService {
     if (payload.skipped !== undefined && typeof payload.skipped !== "boolean") {
       throw new ValidationError("skipped must be a boolean");
     }
+  }
+
+  /**
+   * Validates a redirectTo URL against the allowed frontend origin.
+   * Returns the URL if valid, or null to use the default Supabase redirect.
+   * Prevents Open Redirect attacks on OAuth flows.
+   *
+   * @param {string|null} redirectTo
+   * @returns {string|null}
+   */
+  _validateRedirectUrl(redirectTo) {
+    if (!redirectTo) return null;
+
+    const allowedOrigin = (
+      process.env.FRONTEND_URL || "http://localhost:3000"
+    ).replace(/\/$/, "");
+
+    try {
+      const parsed = new URL(redirectTo);
+      const redirectOrigin = `${parsed.protocol}//${parsed.host}`;
+      if (redirectOrigin !== allowedOrigin) {
+        throw new ValidationError("Invalid redirect URL");
+      }
+      return redirectTo;
+    } catch (err) {
+      if (err instanceof ValidationError) throw err;
+      throw new ValidationError("Invalid redirect URL");
+    }
+  }
+
+  /**
+   * Returns normalized token version from user metadata.
+   * @param {Object} user
+   * @returns {number}
+   */
+  _getTokenVersion(user) {
+    const rawVersion = Number(user?.metadata?.tokenVersion);
+    if (!Number.isInteger(rawVersion) || rawVersion < 0) {
+      return 0;
+    }
+    return rawVersion;
+  }
+
+  /**
+   * Persistently increments tokenVersion to invalidate previously issued refresh tokens.
+   * @param {string} userId
+   */
+  async _incrementTokenVersion(userId) {
+    const user = await this.authRepository.getUserById(userId);
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
+
+    const metadata = user.metadata || {};
+    const nextTokenVersion = this._getTokenVersion(user) + 1;
+
+    await this.authRepository.updateUser(userId, {
+      metadata: {
+        ...metadata,
+        tokenVersion: nextTokenVersion,
+      },
+    });
+  }
+
+  /**
+   * Sanitizes registration metadata to avoid privilege-like field injection.
+   * @param {Object} metadata
+   * @returns {Object}
+   */
+  _sanitizeRegistrationMetadata(metadata = {}) {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      return {};
+    }
+
+    const safeMetadata = {};
+    for (const [key, value] of Object.entries(metadata)) {
+      if (REGISTRATION_METADATA_ALLOWLIST.has(key)) {
+        safeMetadata[key] = value;
+      }
+    }
+    return safeMetadata;
   }
 }
 

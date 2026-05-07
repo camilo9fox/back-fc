@@ -308,7 +308,10 @@ class Container {
 
     container.register("studyGuideRoutes", (c) => {
       const createStudyGuideRouter = require("./modules/studyguides/routes/studyGuideRoutes");
-      return createStudyGuideRouter(c.get("studyGuideController"));
+      return createStudyGuideRouter(
+        c.get("studyGuideController"),
+        c.get("aiUsageMiddlewareFactory").forAction("studyguides"),
+      );
     });
 
     // Exam simulation

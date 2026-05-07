@@ -2,6 +2,11 @@ const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 const config = require("../../shared/config/config");
 const { authMiddleware } = require("../../shared/middleware/auth");
+const { perUserApiLimiter } = require("../../shared/middleware/rateLimiter");
+const logger = require("../../shared/config/logger");
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Games routes — read-only endpoints that pool questions for game modes.
@@ -22,70 +27,82 @@ function createGamesRouter() {
    *   categoryId? — filter to a specific category
    *   limit?      — max questions to return (default 50, max 100)
    */
-  router.get("/survival/pool", authMiddleware, async (req, res) => {
-    try {
-      const userId = req.user.id;
-      const { categoryId } = req.query;
-      const limit = Math.min(Number(req.query.limit) || 50, 100);
+  router.get(
+    "/survival/pool",
+    authMiddleware,
+    perUserApiLimiter,
+    async (req, res) => {
+      try {
+        const userId = req.user.id;
+        const { categoryId } = req.query;
+        const parsedLimit = Number.parseInt(req.query.limit, 10);
+        const limit = Number.isFinite(parsedLimit)
+          ? Math.min(Math.max(parsedLimit, 1), 100)
+          : 50;
 
-      // ── 1. Quiz questions ─────────────────────────────────────────────────
-      let quizQuery = supabase
-        .from("quizzes")
-        .select("id")
-        .eq("user_id", userId);
-      if (categoryId) quizQuery = quizQuery.eq("category_id", categoryId);
+        if (categoryId && !UUID_REGEX.test(String(categoryId))) {
+          return res.status(400).json({ error: "categoryId inválido" });
+        }
 
-      const { data: quizRows, error: quizRowsErr } = await quizQuery;
-      if (quizRowsErr) throw quizRowsErr;
+        // ── 1. Quiz questions ─────────────────────────────────────────────────
+        let quizQuery = supabase
+          .from("quizzes")
+          .select("id")
+          .eq("user_id", userId);
+        if (categoryId) quizQuery = quizQuery.eq("category_id", categoryId);
 
-      let quizQuestions = [];
-      if (quizRows && quizRows.length > 0) {
-        const quizIds = quizRows.map((r) => r.id);
-        const { data, error } = await supabase
-          .from("quiz_questions")
-          .select("id, question, options, correct_answer, explanation")
-          .in("quiz_id", quizIds);
-        if (error) throw error;
-        quizQuestions = (data || []).map((q) => ({ type: "quiz", ...q }));
+        const { data: quizRows, error: quizRowsErr } = await quizQuery;
+        if (quizRowsErr) throw quizRowsErr;
+
+        let quizQuestions = [];
+        if (quizRows && quizRows.length > 0) {
+          const quizIds = quizRows.map((r) => r.id);
+          const { data, error } = await supabase
+            .from("quiz_questions")
+            .select("id, question, options, correct_answer, explanation")
+            .in("quiz_id", quizIds);
+          if (error) throw error;
+          quizQuestions = (data || []).map((q) => ({ type: "quiz", ...q }));
+        }
+
+        // ── 2. True/false questions ───────────────────────────────────────────
+        let tfQuery = supabase
+          .from("true_false_sets")
+          .select("id")
+          .eq("user_id", userId);
+        if (categoryId) tfQuery = tfQuery.eq("category_id", categoryId);
+
+        const { data: tfRows, error: tfRowsErr } = await tfQuery;
+        if (tfRowsErr) throw tfRowsErr;
+
+        let tfQuestions = [];
+        if (tfRows && tfRows.length > 0) {
+          const setIds = tfRows.map((r) => r.id);
+          const { data, error } = await supabase
+            .from("true_false_questions")
+            .select("id, statement, is_true, explanation")
+            .in("set_id", setIds);
+          if (error) throw error;
+          tfQuestions = (data || []).map((q) => ({ type: "true-false", ...q }));
+        }
+
+        // ── 3. Shuffle (Fisher-Yates) and limit ───────────────────────────────
+        const all = [...quizQuestions, ...tfQuestions];
+        for (let i = all.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [all[i], all[j]] = [all[j], all[i]];
+        }
+
+        res.json({
+          questions: all.slice(0, limit),
+          total: all.length,
+        });
+      } catch (error) {
+        logger.error("GamesRoute.getSurvivalPool error:", error);
+        res.status(500).json({ error: "Internal server error" });
       }
-
-      // ── 2. True/false questions ───────────────────────────────────────────
-      let tfQuery = supabase
-        .from("true_false_sets")
-        .select("id")
-        .eq("user_id", userId);
-      if (categoryId) tfQuery = tfQuery.eq("category_id", categoryId);
-
-      const { data: tfRows, error: tfRowsErr } = await tfQuery;
-      if (tfRowsErr) throw tfRowsErr;
-
-      let tfQuestions = [];
-      if (tfRows && tfRows.length > 0) {
-        const setIds = tfRows.map((r) => r.id);
-        const { data, error } = await supabase
-          .from("true_false_questions")
-          .select("id, statement, is_true, explanation")
-          .in("set_id", setIds);
-        if (error) throw error;
-        tfQuestions = (data || []).map((q) => ({ type: "true-false", ...q }));
-      }
-
-      // ── 3. Shuffle (Fisher-Yates) and limit ───────────────────────────────
-      const all = [...quizQuestions, ...tfQuestions];
-      for (let i = all.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [all[i], all[j]] = [all[j], all[i]];
-      }
-
-      res.json({
-        questions: all.slice(0, limit),
-        total: all.length,
-      });
-    } catch (error) {
-      console.error("GamesRoute.getSurvivalPool error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
+    },
+  );
 
   return router;
 }

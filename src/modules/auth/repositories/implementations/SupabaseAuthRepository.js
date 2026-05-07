@@ -30,7 +30,8 @@ class SupabaseAuthRepository {
       const { data, error } = await this.supabase.auth.admin.createUser({
         email,
         password,
-        email_confirm: true, // Auto-confirm email for development
+        // In production, require email verification; skip it in other environments.
+        email_confirm: process.env.NODE_ENV !== "production",
         user_metadata: metadata,
       });
 
@@ -98,10 +99,16 @@ class SupabaseAuthRepository {
    */
   async signInWithOAuth(provider, redirectTo = null) {
     try {
+      const frontendUrl = (
+        process.env.FRONTEND_URL ||
+        config.corsOptions.origin ||
+        "http://localhost:3000"
+      ).replace(/\/$/, "");
+
       const { data, error } = await this.supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: redirectTo || `${process.env.FRONTEND_URL}/auth/callback`,
+          redirectTo: redirectTo || `${frontendUrl}/auth/callback`,
         },
       });
 
@@ -126,13 +133,12 @@ class SupabaseAuthRepository {
    */
   async signOut(userId) {
     try {
-      const { error } = await this.supabase.auth.admin.signOut(userId);
-
-      if (error) {
-        console.error("Supabase signOut error:", error);
-        throw new Error(`Error signing out: ${error.message}`);
-      }
-
+      // Supabase admin.signOut expects a JWT, not a user UUID.
+      // Session revocation in this backend is handled at the app layer via:
+      // - refresh token blocklist
+      // - tokenVersion invalidation stored in user metadata
+      // Therefore this repository method is intentionally a no-op.
+      void userId;
       return true;
     } catch (error) {
       console.error("SupabaseAuthRepository.signOut error:", error);
@@ -174,8 +180,14 @@ class SupabaseAuthRepository {
    */
   async resetPassword(email) {
     try {
+      const frontendUrl = (
+        process.env.FRONTEND_URL ||
+        config.corsOptions.origin ||
+        "http://localhost:3000"
+      ).replace(/\/$/, "");
+
       const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.FRONTEND_URL}/auth/reset-password`,
+        redirectTo: `${frontendUrl}/auth/reset-password`,
       });
 
       if (error) {

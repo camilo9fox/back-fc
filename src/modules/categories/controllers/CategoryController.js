@@ -1,5 +1,6 @@
 const CategoryDto = require("../dtos/CategoryDto");
 const { AppError } = require("../../../shared/errors/AppError");
+const logger = require("../../../shared/config/logger");
 
 /**
  * Controller class for category operations
@@ -156,13 +157,11 @@ class CategoryController {
    * @param {Object} res - Express response object
    */
   _handleError(error, res) {
-    console.error("Error in CategoryController:", error);
+    logger.error("Error in CategoryController:", error);
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
-    res
-      .status(500)
-      .json({ error: error.message || "Error interno del servidor" });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 
   async publishCategory(req, res) {

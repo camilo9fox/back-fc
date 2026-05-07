@@ -1,4 +1,5 @@
 const { AppError } = require("../../../shared/errors/AppError");
+const logger = require("../../../shared/config/logger");
 
 class StudyGuideController {
   constructor(studyGuideService, generationJobService) {
@@ -134,8 +135,8 @@ class StudyGuideController {
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
-    console.error("StudyGuideController error:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    logger.error("StudyGuideController error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 

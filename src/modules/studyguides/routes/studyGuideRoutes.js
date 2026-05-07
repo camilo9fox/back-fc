@@ -3,7 +3,7 @@ const multer = require("multer");
 const config = require("../../../shared/config/config");
 const { authMiddleware } = require("../../../shared/middleware/auth");
 
-function createStudyGuideRouter(controller) {
+function createStudyGuideRouter(controller, aiUsageMiddleware) {
   const router = express.Router();
 
   const upload = multer({
@@ -23,8 +23,11 @@ function createStudyGuideRouter(controller) {
 
   router.use(authMiddleware);
 
-  router.post("/generate-async", upload.single("file"), (req, res) =>
-    controller.generateGuideAsync(req, res),
+  router.post(
+    "/generate-async",
+    aiUsageMiddleware,
+    upload.single("file"),
+    (req, res) => controller.generateGuideAsync(req, res),
   );
 
   router.get("/generation-jobs/:jobId", (req, res) =>

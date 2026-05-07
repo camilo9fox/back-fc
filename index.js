@@ -2,6 +2,25 @@ const createApp = require("./src/app");
 const config = require("./src/shared/config/config");
 const logger = require("./src/shared/config/logger");
 
+// ── Startup environment validation ───────────────────────────────────────────
+// Fail fast if any required secret or configuration is missing so that
+// misconfigured deployments are caught immediately rather than at runtime.
+const REQUIRED_ENV = [
+  "JWT_SECRET",
+  "JWT_REFRESH_SECRET",
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+];
+
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
+if (missingEnv.length > 0) {
+  // eslint-disable-next-line no-console
+  console.error(
+    `[FATAL] Missing required environment variables: ${missingEnv.join(", ")}`,
+  );
+  process.exit(1);
+}
+
 const app = createApp();
 
 // ── Global unhandled error guards ─────────────────────────────────────────────

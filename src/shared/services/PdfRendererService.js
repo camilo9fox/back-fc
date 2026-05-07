@@ -4,13 +4,34 @@ const RENDER_SCALE = 1.0;
 const MAX_PAGES = 50;
 
 let pdfjsLib = null;
+let pdfjsLoadPromise = null;
 
-function _loadPdfjs() {
-  if (!pdfjsLib) {
-    pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = false;
+async function _loadPdfjs() {
+  if (pdfjsLib) {
+    return pdfjsLib;
   }
-  return pdfjsLib;
+
+  if (!pdfjsLoadPromise) {
+    pdfjsLoadPromise = (async () => {
+      try {
+        // Secure modern versions of pdfjs-dist expose the legacy build as ESM.
+        const mod = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        pdfjsLib = mod.default || mod;
+      } catch {
+        // Fallback for legacy CommonJS installations.
+        // eslint-disable-next-line global-require
+        pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+      }
+
+      if (pdfjsLib?.GlobalWorkerOptions) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = false;
+      }
+
+      return pdfjsLib;
+    })();
+  }
+
+  return pdfjsLoadPromise;
 }
 
 class PdfRendererService {
@@ -20,7 +41,7 @@ class PdfRendererService {
    * @returns {Promise<{isScanned: boolean, pageCount: number}>}
    */
   async analyzeDocument(buffer) {
-    const pdfjs = _loadPdfjs();
+    const pdfjs = await _loadPdfjs();
     const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) })
       .promise;
     const pageCount = pdf.numPages;
@@ -48,7 +69,7 @@ class PdfRendererService {
    */
   async renderPages(buffer, totalPages) {
     const { createCanvas } = require("canvas");
-    const pdfjs = _loadPdfjs();
+    const pdfjs = await _loadPdfjs();
 
     const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) })
       .promise;
@@ -98,7 +119,7 @@ class PdfRendererService {
    */
   async createPageRenderer(buffer, totalPages) {
     const { createCanvas } = require("canvas");
-    const pdfjs = _loadPdfjs();
+    const pdfjs = await _loadPdfjs();
     const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) })
       .promise;
     const pageCount = Math.min(totalPages, MAX_PAGES);
@@ -141,7 +162,7 @@ class PdfRendererService {
    */
   async *renderPagesStream(buffer, totalPages) {
     const { createCanvas } = require("canvas");
-    const pdfjs = _loadPdfjs();
+    const pdfjs = await _loadPdfjs();
     const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) })
       .promise;
     const pagesToRender = Math.min(totalPages, MAX_PAGES);

@@ -405,6 +405,12 @@ class AuthController {
         });
       }
 
+      if (!currentPassword) {
+        return res.status(400).json({
+          error: "Current password is required",
+        });
+      }
+
       if (!newPassword) {
         return res.status(400).json({
           error: "New password is required",

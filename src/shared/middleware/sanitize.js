@@ -1,7 +1,8 @@
 /**
  * Input sanitization middleware.
- * Strips NUL bytes and trims strings throughout req.body to prevent
- * injection of control characters into DB queries and AI prompts.
+ * Strips NUL bytes and trims strings throughout req.body, req.query, and
+ * req.params to prevent injection of control characters into DB queries
+ * and AI prompts.
  * This is a lightweight defense-in-depth measure — validation is still
  * the primary control and lives in the service layer.
  */
@@ -32,11 +33,17 @@ function sanitize(value) {
 }
 
 /**
- * Express middleware — sanitizes req.body in place.
+ * Express middleware — sanitizes req.body, req.query, and req.params in place.
  */
 function sanitizeBody(req, res, next) {
   if (req.body && typeof req.body === "object") {
     req.body = sanitize(req.body);
+  }
+  if (req.query && typeof req.query === "object") {
+    req.query = sanitize(req.query);
+  }
+  if (req.params && typeof req.params === "object") {
+    req.params = sanitize(req.params);
   }
   next();
 }

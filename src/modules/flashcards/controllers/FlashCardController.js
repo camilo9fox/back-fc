@@ -2,6 +2,7 @@ const {
   AppError,
   ValidationError,
 } = require("../../../shared/errors/AppError");
+const logger = require("../../../shared/config/logger");
 
 /**
  * Controller class for flashcard operations
@@ -184,7 +185,7 @@ class FlashCardController {
    * @param {Object} res - Express response object
    */
   _handleError(error, res) {
-    console.error("Error in FlashCardController:", error);
+    logger.error("Error in FlashCardController:", error);
     // Groq API payload-too-large (comes as a plain error from groq-sdk)
     if (error.message && error.message.includes("request_too_large")) {
       return res.status(413).json({
@@ -195,9 +196,7 @@ class FlashCardController {
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
-    res
-      .status(500)
-      .json({ error: error.message || "Error interno del servidor" });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 
   /**

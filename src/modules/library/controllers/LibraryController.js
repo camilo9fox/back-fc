@@ -1,4 +1,5 @@
 ﻿const { AppError } = require("../../../shared/errors/AppError");
+const logger = require("../../../shared/config/logger");
 
 class LibraryController {
   constructor(libraryService) {
@@ -11,7 +12,7 @@ class LibraryController {
       const result = await this.libraryService.getPublicCategories({
         limit: Math.min(parseInt(limit) || 20, 100),
         offset: parseInt(offset) || 0,
-        search,
+        search: String(search).slice(0, 100),
       });
       res.json(result);
     } catch (error) {
@@ -44,11 +45,11 @@ class LibraryController {
   }
 
   _handleError(error, res) {
-    console.error("LibraryController error:", error.message);
+    logger.error("LibraryController error:", error);
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 
