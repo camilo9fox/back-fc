@@ -136,4 +136,166 @@ describe("ManualFlashCardService.createFlashCards()", () => {
       service.createFlashCards([validFlashCardInput], ""),
     ).rejects.toThrow(ValidationError);
   });
+
+  it("uses source 'ai' when a card has source='ai'", async () => {
+    const { service, flashCardRepository } = buildService();
+    await service.createFlashCards(
+      [{ ...validFlashCardInput, source: "ai" }],
+      VALID_USER_ID,
+      VALID_CATEGORY_ID,
+    );
+    expect(flashCardRepository.createMany).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ source: "ai" })]),
+      VALID_USER_ID,
+      VALID_CATEGORY_ID,
+    );
+  });
+
+  it("uses per-card categoryId when present", async () => {
+    const { service, flashCardRepository } = buildService();
+    const perCardCategoryId = "cat-per-card-002";
+    await service.createFlashCards(
+      [{ ...validFlashCardInput, categoryId: perCardCategoryId }],
+      VALID_USER_ID,
+      VALID_CATEGORY_ID,
+    );
+    expect(flashCardRepository.createMany).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ categoryId: perCardCategoryId }),
+      ]),
+      VALID_USER_ID,
+      VALID_CATEGORY_ID,
+    );
+  });
+});
+
+// ── deleteFlashCard ───────────────────────────────────────────────────────────
+
+describe("ManualFlashCardService.deleteFlashCard()", () => {
+  it("deletes and returns true when the card exists", async () => {
+    const { service } = buildService({
+      repoOverrides: {
+        findById: jest.fn().mockResolvedValue({ id: "fc-001" }),
+        delete: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+    const result = await service.deleteFlashCard("fc-001", VALID_USER_ID);
+    expect(result).toBe(true);
+  });
+
+  it("returns false when the card does not exist", async () => {
+    const { service } = buildService({
+      repoOverrides: { findById: jest.fn().mockResolvedValue(null) },
+    });
+    const result = await service.deleteFlashCard("nonexistent", VALID_USER_ID);
+    expect(result).toBe(false);
+  });
+
+  it("throws ValidationError when userId is missing", async () => {
+    const { service } = buildService();
+    await expect(service.deleteFlashCard("fc-001", "")).rejects.toThrow(
+      ValidationError,
+    );
+  });
+});
+
+// ── updateFlashCard ───────────────────────────────────────────────────────────
+
+describe("ManualFlashCardService.updateFlashCard()", () => {
+  it("updates and returns the updated card", async () => {
+    const updated = { id: "fc-001", question: "Nueva P", answer: "Nueva R" };
+    const { service } = buildService({
+      repoOverrides: {
+        findById: jest.fn().mockResolvedValue({ id: "fc-001" }),
+        update: jest.fn().mockResolvedValue(updated),
+      },
+    });
+    const result = await service.updateFlashCard("fc-001", VALID_USER_ID, {
+      question: "Nueva P",
+      answer: "Nueva R",
+    });
+    expect(result).toEqual(updated);
+  });
+
+  it("returns null when the card is not found", async () => {
+    const { service } = buildService({
+      repoOverrides: { findById: jest.fn().mockResolvedValue(null) },
+    });
+    const result = await service.updateFlashCard("nonexistent", VALID_USER_ID, {
+      question: "P",
+      answer: "R",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("throws ValidationError when userId is missing", async () => {
+    const { service } = buildService();
+    await expect(
+      service.updateFlashCard("fc-001", "", { question: "P", answer: "R" }),
+    ).rejects.toThrow(ValidationError);
+  });
+});
+
+// ── getFlashCards ─────────────────────────────────────────────────────────────
+
+describe("ManualFlashCardService.getFlashCards()", () => {
+  it("delegates to repository with userId and filters", async () => {
+    const cards = [{ id: "fc-001" }];
+    const { service, flashCardRepository } = buildService({
+      repoOverrides: { findAll: jest.fn().mockResolvedValue(cards) },
+    });
+    const result = await service.getFlashCards(VALID_USER_ID, {
+      categoryId: VALID_CATEGORY_ID,
+    });
+    expect(flashCardRepository.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: VALID_USER_ID,
+        categoryId: VALID_CATEGORY_ID,
+      }),
+    );
+    expect(result).toEqual(cards);
+  });
+
+  it("throws ValidationError when userId is missing", async () => {
+    const { service } = buildService();
+    await expect(service.getFlashCards("")).rejects.toThrow(ValidationError);
+  });
+});
+
+// ── getFlashCardById ──────────────────────────────────────────────────────────
+
+describe("ManualFlashCardService.getFlashCardById()", () => {
+  it("returns the card when found", async () => {
+    const card = { id: "fc-001" };
+    const { service } = buildService({
+      repoOverrides: { findById: jest.fn().mockResolvedValue(card) },
+    });
+    const result = await service.getFlashCardById("fc-001", VALID_USER_ID);
+    expect(result).toEqual(card);
+  });
+
+  it("throws ValidationError when userId is missing", async () => {
+    const { service } = buildService();
+    await expect(service.getFlashCardById("fc-001", "")).rejects.toThrow(
+      ValidationError,
+    );
+  });
+});
+
+// ── publishByCategory ─────────────────────────────────────────────────────────
+
+describe("ManualFlashCardService.publishByCategory()", () => {
+  it("delegates to flashCardRepository.publishByCategory", async () => {
+    const { service, flashCardRepository } = buildService({
+      repoOverrides: {
+        publishByCategory: jest.fn().mockResolvedValue(true),
+      },
+    });
+    await service.publishByCategory(VALID_CATEGORY_ID, VALID_USER_ID, true);
+    expect(flashCardRepository.publishByCategory).toHaveBeenCalledWith(
+      VALID_CATEGORY_ID,
+      VALID_USER_ID,
+      true,
+    );
+  });
 });
