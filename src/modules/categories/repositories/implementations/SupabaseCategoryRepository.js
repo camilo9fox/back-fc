@@ -220,7 +220,7 @@ class SupabaseCategoryRepository extends ICategoryRepository {
 
   async countContent(categoryId, userId) {
     try {
-      const [fcRes, qRes, tfRes] = await Promise.all([
+      const [fcRes, qRes, tfRes, sgRes] = await Promise.all([
         this.supabase
           .from("flashcards")
           .select("*", { count: "exact", head: true })
@@ -236,8 +236,18 @@ class SupabaseCategoryRepository extends ICategoryRepository {
           .select("*", { count: "exact", head: true })
           .eq("category_id", categoryId)
           .eq("user_id", userId),
+        this.supabase
+          .from("study_guides")
+          .select("*", { count: "exact", head: true })
+          .eq("category_id", categoryId)
+          .eq("user_id", userId),
       ]);
-      return (fcRes.count || 0) + (qRes.count || 0) + (tfRes.count || 0);
+      return (
+        (fcRes.count || 0) +
+        (qRes.count || 0) +
+        (tfRes.count || 0) +
+        (sgRes.count || 0)
+      );
     } catch (error) {
       console.error("SupabaseCategoryRepository.countContent error:", error);
       throw error;

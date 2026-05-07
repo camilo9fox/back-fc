@@ -112,7 +112,7 @@ class CategoryService {
       const total = await this.categoryRepository.countContent(id, userId);
       if (total === 0) {
         throw new ValidationError(
-          "No puedes publicar un tema vacío. Agrega flashcards, cuestionarios o sets de V/F primero.",
+          "No puedes publicar un tema vacío. Agrega flashcards, cuestionarios, sets de V/F o guías de estudio primero.",
         );
       }
     }

@@ -5,7 +5,7 @@ const ILibraryRepository = require("../interfaces/ILibraryRepository");
 /**
  * Category-centric library repository.
  * Sharing is organised by study topic (category): publishing a category
- * exposes all its flashcards, quizzes and true/false sets.
+ * exposes all its flashcards, quizzes, true/false sets and study guides.
  * Forking a category deep-copies all content under a new category owned
  * by the requesting user.
  */
@@ -49,7 +49,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       const catIds = categories.map((c) => c.id);
 
       // Fetch content counts per category in parallel
-      const [flashRes, quizRes, tfRes] = await Promise.all([
+      const [flashRes, quizRes, tfRes, sgRes] = await Promise.all([
         this.supabase
           .from("flashcards")
           .select("category_id")
@@ -65,6 +65,10 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           .select("category_id")
           .eq("is_public", true)
           .in("category_id", catIds),
+        this.supabase
+          .from("study_guides")
+          .select("category_id")
+          .in("category_id", catIds),
       ]);
 
       const flashCount = {};
@@ -79,6 +83,11 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       for (const t of tfRes.data || [])
         tfCount[t.category_id] = (tfCount[t.category_id] || 0) + 1;
 
+      const studyGuideCount = {};
+      for (const g of sgRes.data || [])
+        studyGuideCount[g.category_id] =
+          (studyGuideCount[g.category_id] || 0) + 1;
+
       return {
         categories: categories.map((c) => ({
           id: c.id,
@@ -89,6 +98,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           flashcardCount: flashCount[c.id] || 0,
           quizCount: quizCount[c.id] || 0,
           trueFalseCount: tfCount[c.id] || 0,
+          studyGuideCount: studyGuideCount[c.id] || 0,
         })),
         total: count ?? categories.length,
       };
@@ -230,11 +240,35 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         trueFalseCount++;
       }
 
+      // 6. Copy study guides
+      const { data: srcStudyGuides } = await this.supabase
+        .from("study_guides")
+        .select("title, content")
+        .eq("category_id", sourceCategoryId);
+
+      let studyGuideCount = 0;
+      if (srcStudyGuides && srcStudyGuides.length > 0) {
+        const { data: newStudyGuides } = await this.supabase
+          .from("study_guides")
+          .insert(
+            srcStudyGuides.map((guide) => ({
+              user_id: targetUserId,
+              category_id: newCatId,
+              title: guide.title,
+              content: guide.content,
+            })),
+          )
+          .select("id");
+
+        studyGuideCount = (newStudyGuides || []).length;
+      }
+
       return {
         categoryId: newCatId,
         flashcardCount,
         quizCount,
         trueFalseCount,
+        studyGuideCount,
       };
     } catch (error) {
       console.error("SupabaseLibraryRepository.forkCategory:", error);
@@ -257,7 +291,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       if (catErr || !cat) throw new Error("Category not found or not public");
 
       // Fetch sample content in parallel (max 5 per type)
-      const [flashRes, quizRes, tfRes] = await Promise.all([
+      const [flashRes, quizRes, tfRes, sgRes] = await Promise.all([
         this.supabase
           .from("flashcards")
           .select("id, question")
@@ -279,6 +313,12 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           .eq("is_public", true)
           .order("created_at", { ascending: true })
           .limit(5),
+        this.supabase
+          .from("study_guides")
+          .select("id, title")
+          .eq("category_id", categoryId)
+          .order("created_at", { ascending: true })
+          .limit(5),
       ]);
 
       return {
@@ -298,6 +338,10 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           id: t.id,
           title: t.title,
           description: t.description,
+        })),
+        studyGuides: (sgRes.data || []).map((g) => ({
+          id: g.id,
+          title: g.title,
         })),
       };
     } catch (error) {
