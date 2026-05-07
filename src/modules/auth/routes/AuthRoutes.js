@@ -64,6 +64,16 @@ class AuthRoutes {
       authMiddleware,
       this.authController.updateProfile.bind(this.authController),
     );
+    this.router.get(
+      "/onboarding-profile",
+      authMiddleware,
+      this.authController.getOnboardingProfile.bind(this.authController),
+    );
+    this.router.put(
+      "/onboarding-profile",
+      authMiddleware,
+      this.authController.updateOnboardingProfile.bind(this.authController),
+    );
     this.router.put(
       "/password",
       authMiddleware,

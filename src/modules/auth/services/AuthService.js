@@ -8,6 +8,21 @@ const {
   NotFoundError,
 } = require("../../../shared/errors/AppError");
 
+const ONBOARDING_DAILY_TIME_OPTIONS = new Set(["10-15", "20-30", "45+"]);
+const ONBOARDING_FORMAT_OPTIONS = new Set(["flashcards", "quizzes", "mixed"]);
+const ONBOARDING_LEVEL_OPTIONS = new Set([
+  "school",
+  "university",
+  "professional",
+]);
+const ONBOARDING_WEEKLY_DAYS_OPTIONS = new Set([3, 5, 7]);
+const ONBOARDING_SESSION_OPTIONS = new Set([
+  "morning",
+  "afternoon",
+  "night",
+  "flexible",
+]);
+
 // In-memory blocklist for revoked refresh tokens.
 // Map<tokenHash, expiresAtMs> — entries are pruned every 30 min so the map
 // never grows unboundedly. Resets on server restart (acceptable for our scale).
@@ -201,18 +216,94 @@ class AuthService {
     try {
       if (!userId) throw new ValidationError("User ID is required");
 
+      const currentUser = await this.authRepository.getUserById(userId);
+      if (!currentUser) {
+        throw new NotFoundError("User not found");
+      }
+
+      const currentMetadata = currentUser.metadata || {};
+
       const updates = {};
       if (email) {
         this._validateEmail(email);
         updates.email = email;
       }
       if (name !== undefined) {
-        updates.metadata = { full_name: name };
+        updates.metadata = {
+          ...currentMetadata,
+          full_name: name,
+        };
       }
 
       return await this.authRepository.updateUser(userId, updates);
     } catch (error) {
       logger.error("AuthService.updateProfile error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets onboarding profile for the current user
+   * @param {string} userId
+   * @returns {Promise<Object|null>}
+   */
+  async getOnboardingProfile(userId) {
+    try {
+      if (!userId) throw new ValidationError("User ID is required");
+
+      const user = await this.authRepository.getUserById(userId);
+      if (!user) {
+        throw new NotFoundError("User not found");
+      }
+
+      return user.metadata?.onboardingProfile || null;
+    } catch (error) {
+      logger.error("AuthService.getOnboardingProfile error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Updates onboarding profile for the current user
+   * @param {string} userId
+   * @param {Object} payload
+   * @returns {Promise<Object>}
+   */
+  async updateOnboardingProfile(userId, payload = {}) {
+    try {
+      if (!userId) throw new ValidationError("User ID is required");
+
+      this._validateOnboardingProfile(payload);
+
+      const user = await this.authRepository.getUserById(userId);
+      if (!user) {
+        throw new NotFoundError("User not found");
+      }
+
+      const metadata = user.metadata || {};
+      const currentProfile = metadata.onboardingProfile || {};
+
+      const nextProfile = {
+        ...currentProfile,
+        ...payload,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (nextProfile.introSeen && !nextProfile.completedAt) {
+        nextProfile.completedAt = new Date().toISOString();
+      }
+
+      await this.authRepository.updateUser(userId, {
+        metadata: {
+          ...metadata,
+          onboardingProfile: nextProfile,
+          introSeen: Boolean(nextProfile.introSeen),
+        },
+      });
+
+      return nextProfile;
+    } catch (error) {
+      logger.error("AuthService.updateOnboardingProfile error:", error);
       throw error;
     }
   }
@@ -429,6 +520,123 @@ class AuthService {
       throw new ValidationError(
         "Password must contain at least one uppercase letter, one lowercase letter, and one number",
       );
+    }
+  }
+
+  /**
+   * Validates onboarding profile payload
+   * @param {Object} payload
+   */
+  _validateOnboardingProfile(payload = {}) {
+    if (
+      payload.goals !== undefined &&
+      (!Array.isArray(payload.goals) ||
+        payload.goals.some((goal) => typeof goal !== "string" || !goal.trim()))
+    ) {
+      throw new ValidationError("goals must be an array of non-empty strings");
+    }
+
+    if (
+      payload.dailyTime !== undefined &&
+      !ONBOARDING_DAILY_TIME_OPTIONS.has(payload.dailyTime)
+    ) {
+      throw new ValidationError("dailyTime must be one of: 10-15, 20-30, 45+");
+    }
+
+    if (
+      payload.preferredFormat !== undefined &&
+      !ONBOARDING_FORMAT_OPTIONS.has(payload.preferredFormat)
+    ) {
+      throw new ValidationError(
+        "preferredFormat must be one of: flashcards, quizzes, mixed",
+      );
+    }
+
+    if (
+      payload.studyLevel !== undefined &&
+      !ONBOARDING_LEVEL_OPTIONS.has(payload.studyLevel)
+    ) {
+      throw new ValidationError(
+        "studyLevel must be one of: school, university, professional",
+      );
+    }
+
+    if (
+      payload.weeklyGoalDays !== undefined &&
+      !ONBOARDING_WEEKLY_DAYS_OPTIONS.has(payload.weeklyGoalDays)
+    ) {
+      throw new ValidationError("weeklyGoalDays must be one of: 3, 5, 7");
+    }
+
+    if (
+      payload.sessionPreference !== undefined &&
+      !ONBOARDING_SESSION_OPTIONS.has(payload.sessionPreference)
+    ) {
+      throw new ValidationError(
+        "sessionPreference must be one of: morning, afternoon, night, flexible",
+      );
+    }
+
+    if (
+      payload.challengeAreas !== undefined &&
+      (!Array.isArray(payload.challengeAreas) ||
+        payload.challengeAreas.some(
+          (challenge) =>
+            typeof challenge !== "string" || !challenge.trim().length,
+        ))
+    ) {
+      throw new ValidationError(
+        "challengeAreas must be an array of non-empty strings",
+      );
+    }
+
+    if (
+      payload.examDate !== undefined &&
+      payload.examDate !== null &&
+      typeof payload.examDate !== "string"
+    ) {
+      throw new ValidationError("examDate must be a string or null");
+    }
+
+    if (
+      payload.examDate &&
+      Number.isNaN(new Date(payload.examDate).getTime())
+    ) {
+      throw new ValidationError("examDate must be a valid ISO date string");
+    }
+
+    if (
+      payload.recommendedPath !== undefined &&
+      (typeof payload.recommendedPath !== "string" ||
+        !payload.recommendedPath.startsWith("/"))
+    ) {
+      throw new ValidationError("recommendedPath must be a valid app path");
+    }
+
+    if (
+      payload.introSeen !== undefined &&
+      typeof payload.introSeen !== "boolean"
+    ) {
+      throw new ValidationError("introSeen must be a boolean");
+    }
+
+    if (
+      payload.completedAt !== undefined &&
+      payload.completedAt !== null &&
+      typeof payload.completedAt !== "string"
+    ) {
+      throw new ValidationError("completedAt must be a string or null");
+    }
+
+    if (
+      payload.completedAt &&
+      Number.isNaN(new Date(payload.completedAt).getTime())
+    ) {
+      throw new ValidationError("completedAt must be a valid ISO date string");
+    }
+
+    if (payload.skipped !== undefined && typeof payload.skipped !== "boolean") {
+      throw new ValidationError("skipped must be a boolean");
     }
   }
 }

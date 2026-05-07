@@ -342,6 +342,55 @@ class AuthController {
   }
 
   /**
+   * Gets onboarding profile for authenticated user
+   * GET /auth/onboarding-profile
+   */
+  async getOnboardingProfile(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const profile = await this.authService.getOnboardingProfile(userId);
+
+      return res.json({ profile });
+    } catch (error) {
+      logger.error("AuthController.getOnboardingProfile error:", error);
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  /**
+   * Updates onboarding profile for authenticated user
+   * PUT /auth/onboarding-profile
+   */
+  async updateOnboardingProfile(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const profile = await this.authService.updateOnboardingProfile(
+        userId,
+        req.body || {},
+      );
+
+      return res.json({ profile });
+    } catch (error) {
+      logger.error("AuthController.updateOnboardingProfile error:", error);
+      if (error instanceof AppError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  /**
    * Updates user password
    * PUT /auth/password
    */
