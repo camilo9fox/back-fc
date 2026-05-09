@@ -62,6 +62,18 @@ describe("GenerationJobService.createJob()", () => {
     await Promise.resolve();
     expect(repo.create).toHaveBeenCalledTimes(1);
   });
+
+  it("silently suppresses repository.create rejection (fire-and-forget)", async () => {
+    const repo = {
+      create: jest.fn().mockRejectedValue(new Error("DB offline")),
+      deleteExpired: jest.fn().mockResolvedValue(undefined),
+    };
+    const svc = buildService(repo);
+    // Should not throw even if create rejects
+    const job = svc.createJob({ userId: VALID_USER_ID, type: "flashcards" });
+    await Promise.resolve(); // flush microtasks so the catch fires
+    expect(job).toBeDefined();
+  });
 });
 
 // ── getJob ────────────────────────────────────────────────────────────────────
@@ -149,6 +161,20 @@ describe("GenerationJobService.updateJob()", () => {
     const svc = buildService();
     const job = svc.createJob({ userId: VALID_USER_ID, type: "flashcards" });
     expect(svc.updateJob(job.id, OTHER_USER, {})).toBeNull();
+  });
+
+  it("silently suppresses repository.update rejection (fire-and-forget)", async () => {
+    const repo = {
+      create: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockRejectedValue(new Error("DB offline")),
+      deleteExpired: jest.fn().mockResolvedValue(undefined),
+    };
+    const svc = buildService(repo);
+    const job = svc.createJob({ userId: VALID_USER_ID, type: "flashcards" });
+    // Should not throw
+    const updated = svc.updateJob(job.id, VALID_USER_ID, { status: "running" });
+    await Promise.resolve(); // flush microtasks so the catch fires
+    expect(updated).not.toBeNull();
   });
 });
 

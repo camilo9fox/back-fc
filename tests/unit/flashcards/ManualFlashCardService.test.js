@@ -167,6 +167,20 @@ describe("ManualFlashCardService.createFlashCards()", () => {
       VALID_CATEGORY_ID,
     );
   });
+
+  it("throws ValidationError wrapping error message when one card is invalid", async () => {
+    const { service } = buildService();
+    const cards = [
+      validFlashCardInput, // valid
+      { question: "", answer: "R" }, // invalid — empty question
+    ];
+    await expect(
+      service.createFlashCards(cards, VALID_USER_ID, VALID_CATEGORY_ID),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      service.createFlashCards(cards, VALID_USER_ID, VALID_CATEGORY_ID),
+    ).rejects.toThrow(/Error en la flashcard 2/);
+  });
 });
 
 // ── deleteFlashCard ───────────────────────────────────────────────────────────

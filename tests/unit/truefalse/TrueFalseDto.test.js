@@ -54,6 +54,16 @@ describe("TrueFalseQuestionDto", () => {
       const q = new TrueFalseQuestionDto("x".repeat(2001), true, null, 0);
       expect(q.isValid()).toBe(false);
     });
+
+    it("returns false when explanation exceeds 2000 characters", () => {
+      const q = new TrueFalseQuestionDto(
+        "Enunciado válido.",
+        true,
+        "e".repeat(2001),
+        0,
+      );
+      expect(q.isValid()).toBe(false);
+    });
   });
 });
 
@@ -98,6 +108,28 @@ describe("TrueFalseSetDto", () => {
     it("returns false when a question in the array is invalid", () => {
       const bad = new TrueFalseQuestionDto("", true, null, 0);
       const dto = new TrueFalseSetDto("Título", VALID_CATEGORY_ID, null, [bad]);
+      expect(dto.isValid()).toBe(false);
+    });
+
+    it("returns false when title exceeds 255 characters", () => {
+      const q = new TrueFalseQuestionDto("Enunciado.", true, null, 0);
+      const dto = new TrueFalseSetDto(
+        "t".repeat(256),
+        VALID_CATEGORY_ID,
+        null,
+        [q],
+      );
+      expect(dto.isValid()).toBe(false);
+    });
+
+    it("returns false when description exceeds 2000 characters", () => {
+      const q = new TrueFalseQuestionDto("Enunciado.", true, null, 0);
+      const dto = new TrueFalseSetDto(
+        "T",
+        VALID_CATEGORY_ID,
+        "d".repeat(2001),
+        [q],
+      );
       expect(dto.isValid()).toBe(false);
     });
   });

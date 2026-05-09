@@ -63,6 +63,12 @@ describe("SpacedRepetitionService.getDueCards()", () => {
     await service.getDueCards(VALID_USER_ID, {});
     expect(repo.findDueCards).toHaveBeenCalledWith(VALID_USER_ID, 20, null);
   });
+
+  it("uses default limit of 20 for non-integer limit (e.g. string)", async () => {
+    const { service, repo } = buildService();
+    await service.getDueCards(VALID_USER_ID, { limit: "ten" });
+    expect(repo.findDueCards).toHaveBeenCalledWith(VALID_USER_ID, 20, null);
+  });
 });
 
 // ── submitReview — validation ─────────────────────────────────────────────────
@@ -307,6 +313,40 @@ describe("SpacedRepetitionService.exportToCsv()", () => {
     });
     const csv = await service.exportToCsv(VALID_USER_ID);
     expect(csv).toContain("Q");
+  });
+
+  it("handles null question and answer gracefully (_csvEscape null path)", async () => {
+    const { service } = buildService({
+      findAllForExport: jest.fn().mockResolvedValue([
+        {
+          question: null,
+          answer: null,
+          source: "manual",
+          created_at: null,
+          category: null,
+        },
+      ]),
+    });
+    const csv = await service.exportToCsv(VALID_USER_ID);
+    // Should not throw; question and answer columns should be empty
+    const dataRow = csv.split("\n")[1];
+    expect(dataRow).toBeDefined();
+  });
+
+  it("wraps values containing newlines in double quotes", async () => {
+    const { service } = buildService({
+      findAllForExport: jest.fn().mockResolvedValue([
+        {
+          question: "Línea1\nLínea2",
+          answer: "Respuesta",
+          source: "manual",
+          created_at: "2026-01-01T00:00:00Z",
+          category: null,
+        },
+      ]),
+    });
+    const csv = await service.exportToCsv(VALID_USER_ID);
+    expect(csv).toContain('"Línea1\nLínea2"');
   });
 
   it("delegates to repo.findAllForExport with userId and categoryId", async () => {

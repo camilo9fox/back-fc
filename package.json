@@ -17,10 +17,9 @@
     ],
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
-      "src/modules/flashcards/**/*.js",
-      "src/modules/quizzes/**/*.js",
-      "src/modules/truefalse/**/*.js",
-      "src/shared/services/GroqService.js"
+      "src/modules/*/services/*.js",
+      "src/modules/*/dtos/*.js",
+      "src/shared/services/*.js"
     ]
   },
   "keywords": [],

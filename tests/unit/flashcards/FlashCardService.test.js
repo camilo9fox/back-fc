@@ -113,6 +113,23 @@ describe("FlashCardService.processInput() — validation", () => {
       }),
     ).rejects.toThrow(ValidationError);
   });
+
+  it("throws ValidationError when AI returns a card with empty question (FlashCardDto invalid)", async () => {
+    const { service } = buildService({
+      groqOverrides: {
+        generateFlashCards: jest
+          .fn()
+          .mockResolvedValue([{ question: "", answer: "Respuesta" }]),
+      },
+    });
+    await expect(
+      service.processInput({
+        text: "contenido",
+        quantity: 1,
+        userId: VALID_USER_ID,
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
 });
 
 // ── processInput — happy path ─────────────────────────────────────────────────

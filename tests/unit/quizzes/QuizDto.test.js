@@ -57,6 +57,35 @@ describe("QuizQuestionDto", () => {
       const q = new QuizQuestionDto("x".repeat(2001), ["A", "B"], "A", null, 0);
       expect(q.isValid()).toBe(false);
     });
+
+    it("returns false when options array has more than 6 items", () => {
+      const opts = ["A", "B", "C", "D", "E", "F", "G"];
+      const q = new QuizQuestionDto("¿Pregunta?", opts, "A", null, 0);
+      expect(q.isValid()).toBe(false);
+    });
+
+    it("returns false when an option exceeds 500 characters", () => {
+      const longOpt = "o".repeat(501);
+      const q = new QuizQuestionDto(
+        "¿Pregunta?",
+        [longOpt, "B"],
+        longOpt,
+        null,
+        0,
+      );
+      expect(q.isValid()).toBe(false);
+    });
+
+    it("returns false when explanation exceeds 2000 characters", () => {
+      const q = new QuizQuestionDto(
+        "¿Pregunta?",
+        ["A", "B"],
+        "A",
+        "e".repeat(2001),
+        0,
+      );
+      expect(q.isValid()).toBe(false);
+    });
   });
 });
 
@@ -105,6 +134,13 @@ describe("QuizDto", () => {
 
     it("returns false when title exceeds 255 characters", () => {
       const dto = new QuizDto("t".repeat(256), VALID_CATEGORY_ID, null, [
+        buildValidQuestion(),
+      ]);
+      expect(dto.isValid()).toBe(false);
+    });
+
+    it("returns false when description exceeds 2000 characters", () => {
+      const dto = new QuizDto("Título", VALID_CATEGORY_ID, "d".repeat(2001), [
         buildValidQuestion(),
       ]);
       expect(dto.isValid()).toBe(false);
