@@ -1,6 +1,7 @@
 const { createClient } = require("@supabase/supabase-js");
 const IFlashCardRepository = require("../interfaces/IFlashCardRepository");
 const config = require("../../../../shared/config/config");
+const logger = require("../../../../shared/config/logger");
 
 /**
  * Supabase implementation of FlashCard repository
@@ -48,13 +49,13 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         .single();
 
       if (error) {
-        console.error("Supabase create error:", error);
+        logger.error("Supabase create error:", error);
         throw new Error(`Error creating flashcard: ${error.message}`);
       }
 
       return data;
     } catch (error) {
-      console.error("SupabaseFlashCardRepository.create error:", error);
+      logger.error("SupabaseFlashCardRepository.create error:", error);
       throw error;
     }
   }
@@ -91,13 +92,13 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         `);
 
       if (error) {
-        console.error("Supabase createMany error:", error);
+        logger.error("Supabase createMany error:", error);
         throw new Error(`Error creating flashcards: ${error.message}`);
       }
 
       return (data || []).map(this._normalize);
     } catch (error) {
-      console.error("SupabaseFlashCardRepository.createMany error:", error);
+      logger.error("SupabaseFlashCardRepository.createMany error:", error);
       throw error;
     }
   }
@@ -120,13 +121,13 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
 
       if (error && error.code !== "PGRST116") {
         // PGRST116 = not found
-        console.error("Supabase findById error:", error);
+        logger.error("Supabase findById error:", error);
         throw new Error(`Error finding flashcard: ${error.message}`);
       }
 
       return data || null;
     } catch (error) {
-      console.error("SupabaseFlashCardRepository.findById error:", error);
+      logger.error("SupabaseFlashCardRepository.findById error:", error);
       throw error;
     }
   }
@@ -182,13 +183,13 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
       const { data, error } = await query;
 
       if (error) {
-        console.error("Supabase findAll error:", error);
+        logger.error("Supabase findAll error:", error);
         throw new Error(`Error finding flashcards: ${error.message}`);
       }
 
       return (data || []).map(this._normalize);
     } catch (error) {
-      console.error("SupabaseFlashCardRepository.findAll error:", error);
+      logger.error("SupabaseFlashCardRepository.findAll error:", error);
       throw error;
     }
   }
@@ -220,13 +221,13 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         .single();
 
       if (error && error.code !== "PGRST116") {
-        console.error("Supabase update error:", error);
+        logger.error("Supabase update error:", error);
         throw new Error(`Error updating flashcard: ${error.message}`);
       }
 
       return data || null;
     } catch (error) {
-      console.error("SupabaseFlashCardRepository.update error:", error);
+      logger.error("SupabaseFlashCardRepository.update error:", error);
       throw error;
     }
   }
@@ -251,7 +252,7 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         throw new Error(`Error publishing flashcards: ${error.message}`);
       return { count: (data || []).length, isPublic };
     } catch (error) {
-      console.error(
+      logger.error(
         "SupabaseFlashCardRepository.publishByCategory error:",
         error,
       );
@@ -272,13 +273,13 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         .eq("id", id);
 
       if (error) {
-        console.error("Supabase delete error:", error);
+        logger.error("Supabase delete error:", error);
         throw new Error(`Error deleting flashcard: ${error.message}`);
       }
 
       return true;
     } catch (error) {
-      console.error("SupabaseFlashCardRepository.delete error:", error);
+      logger.error("SupabaseFlashCardRepository.delete error:", error);
       throw error;
     }
   }
@@ -305,13 +306,13 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
       const { count, error } = await query;
 
       if (error) {
-        console.error("Supabase count error:", error);
+        logger.error("Supabase count error:", error);
         throw new Error(`Error counting flashcards: ${error.message}`);
       }
 
       return count || 0;
     } catch (error) {
-      console.error("SupabaseFlashCardRepository.count error:", error);
+      logger.error("SupabaseFlashCardRepository.count error:", error);
       throw error;
     }
   }

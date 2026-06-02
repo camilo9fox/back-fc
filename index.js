@@ -21,6 +21,15 @@ if (missingEnv.length > 0) {
   process.exit(1);
 }
 
+if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
+  // eslint-disable-next-line no-console
+  console.error(
+    "[FATAL] JWT_SECRET must be at least 32 characters. Current length: " +
+      process.env.JWT_SECRET.length,
+  );
+  process.exit(1);
+}
+
 const app = createApp();
 
 // ── Global unhandled error guards ─────────────────────────────────────────────

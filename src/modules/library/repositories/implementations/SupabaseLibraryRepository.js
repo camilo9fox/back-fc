@@ -1,5 +1,6 @@
 ﻿const { createClient } = require("@supabase/supabase-js");
 const config = require("../../../../shared/config/config");
+const logger = require("../../../../shared/config/logger");
 const ILibraryRepository = require("../interfaces/ILibraryRepository");
 
 /**
@@ -103,7 +104,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         total: count ?? categories.length,
       };
     } catch (error) {
-      console.error("SupabaseLibraryRepository.getPublicCategories:", error);
+      logger.error("SupabaseLibraryRepository.getPublicCategories:", error);
       throw error;
     }
   }
@@ -271,7 +272,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         studyGuideCount,
       };
     } catch (error) {
-      console.error("SupabaseLibraryRepository.forkCategory:", error);
+      logger.error("SupabaseLibraryRepository.forkCategory:", error);
       throw error;
     }
   }
@@ -345,7 +346,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         })),
       };
     } catch (error) {
-      console.error("SupabaseLibraryRepository.getCategoryPreview:", error);
+      logger.error("SupabaseLibraryRepository.getCategoryPreview:", error);
       throw error;
     }
   }

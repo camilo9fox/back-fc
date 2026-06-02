@@ -1,4 +1,5 @@
 const { AppError } = require("../../../shared/errors/AppError");
+const logger = require("../../../shared/config/logger");
 
 class ExamSimulationController {
   constructor(examSimulationService, generationJobService) {
@@ -123,7 +124,7 @@ class ExamSimulationController {
             ? `[${stage}] ${baseMessage}`
             : baseMessage;
 
-          console.error("ExamSimulation async generation failed", {
+          logger.error("ExamSimulation async generation failed", {
             jobId: job.id,
             userId,
             stage: stage || null,
@@ -230,7 +231,7 @@ class ExamSimulationController {
   }
 
   handleError(error, res) {
-    console.error("ExamSimulationController error:", error.message);
+    logger.error("ExamSimulationController error:", error.message);
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }

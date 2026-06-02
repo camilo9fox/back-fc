@@ -1,3 +1,4 @@
+const logger = require("../config/logger");
 const path = require("path");
 const { Worker } = require("worker_threads");
 const config = require("../config/config");
@@ -149,7 +150,7 @@ class FileService {
     const cacheKey = this.buildPdfCacheKey(buffer);
     const cached = cacheKey ? this.getCachedPdfText(cacheKey) : null;
     if (cached) {
-      console.log(
+      logger.info(
         `PDF extraction (cache): pages=${cached.pageCount}, textLength=${cached.text.length}`,
       );
       return cached;
@@ -158,7 +159,7 @@ class FileService {
     const { text: extractedText, pageCount } =
       await this.parsePdfInWorker(buffer);
 
-    console.log(
+    logger.info(
       `PDF extraction: pages=${pageCount}, textLength=${extractedText.length}`,
     );
 
@@ -175,7 +176,7 @@ class FileService {
       );
     }
 
-    console.log("PDF has no selectable text — using OCR...");
+    logger.info("PDF has no selectable text — using OCR...");
     const { pageCount: analyzedPageCount } =
       await this.pdfRendererService.analyzeDocument(buffer);
     const { pageCount: pages, renderPage } =
@@ -194,7 +195,7 @@ class FileService {
       );
     }
 
-    console.log(`OCR completado: ${ocrText.length} caracteres extraídos.`);
+    logger.info(`OCR completado: ${ocrText.length} caracteres extraídos.`);
     const ocrResult = {
       text: ocrText,
       pageCount: analyzedPageCount || pageCount,

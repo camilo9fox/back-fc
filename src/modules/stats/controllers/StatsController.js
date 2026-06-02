@@ -1,3 +1,4 @@
+const logger = require("../../../shared/config/logger");
 const { AppError } = require("../../../shared/errors/AppError");
 
 /**
@@ -39,7 +40,7 @@ class StatsController {
   }
 
   _handleError(error, res) {
-    console.error("StatsController error:", error);
+    logger.error("StatsController error:", error);
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }

@@ -3,6 +3,8 @@
  * Handles splitting documents into chunks and processing each chunk with delays
  * Follows Single Responsibility Principle - reusable across modules
  */
+const logger = require("../config/logger");
+
 class DocumentProcessingService {
   constructor() {
     this.MAX_CHUNK_LENGTH = 5200;
@@ -446,7 +448,7 @@ class DocumentProcessingService {
    */
   validateAndTruncateContent(content, maxLength) {
     if (content.length > maxLength) {
-      console.warn(
+      logger.warn(
         `Contenido truncado de ${content.length} a ${maxLength} caracteres`,
       );
 
@@ -497,7 +499,7 @@ class DocumentProcessingService {
     };
 
     const normalized = this.normalizeText(rawContent);
-    console.log(
+    logger.info(
       `DocumentProcessingService.buildStudyContext: entrada=${normalized.length} chars`,
     );
 
@@ -510,7 +512,7 @@ class DocumentProcessingService {
     });
     const cachedContext = this.getCachedContext(cacheKey);
     if (cachedContext) {
-      console.log("DocumentProcessingService.buildStudyContext: cache hit");
+      logger.info("DocumentProcessingService.buildStudyContext: cache hit");
       report("Material listo para generar (cache)", 78);
       return cachedContext;
     }
@@ -534,13 +536,13 @@ class DocumentProcessingService {
         : normalized;
 
     if (fastPathInput.length !== normalized.length) {
-      console.log(
+      logger.info(
         `DocumentProcessingService.buildStudyContext: fast-path sample ${normalized.length} -> ${fastPathInput.length} chars`,
       );
     }
 
     const chunks = this.splitIntoChunks(fastPathInput);
-    console.log(
+    logger.info(
       `DocumentProcessingService.buildStudyContext: ${chunks.length} chunks`,
     );
 
@@ -572,7 +574,7 @@ class DocumentProcessingService {
             totalChunks,
           });
         } catch (error) {
-          console.warn(
+          logger.warn(
             `DocumentProcessingService: extractStudyNotes fallback on chunk ${index + 1}/${totalChunks} (${error.message})`,
           );
           return this.buildLocalFallbackNotes(chunk);
@@ -601,7 +603,7 @@ class DocumentProcessingService {
     };
 
     let combined = this.combineStructuredNotes(notes, combinedLimits);
-    console.log(
+    logger.info(
       `DocumentProcessingService.buildStudyContext: notas combinadas=${combined.length} chars`,
     );
 
@@ -612,7 +614,7 @@ class DocumentProcessingService {
         combined,
         maxLength,
       );
-      console.log(
+      logger.info(
         `DocumentProcessingService.buildStudyContext: comprimido=${combined.length} chars`,
       );
     }

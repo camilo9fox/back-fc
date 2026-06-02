@@ -19,14 +19,17 @@ jest.mock("../../../src/shared/config/logger", () => ({
 const FlashcardGenerationService = require("../../../src/shared/services/FlashcardGenerationService");
 
 function buildService() {
-  const svc = new FlashcardGenerationService("test-key");
-  svc.RATE_LIMIT_RETRIES_PER_MODEL = 1;
-  svc.modelFallbackChain = ["fast-model"];
+  const GroqService = require("../../../src/shared/services/GroqService");
+  const groqService = new GroqService("test-key");
+  groqService.RATE_LIMIT_RETRIES_PER_MODEL = 1;
+  groqService.modelFallbackChain = ["fast-model"];
+  const svc = new FlashcardGenerationService(groqService);
   return svc;
 }
 
-function mockCreate(svc) {
-  return svc.groq.chat.completions.create;
+function mockCreate() {
+  const Groq = require("groq-sdk").Groq;
+  return Groq._mockCreate;
 }
 
 beforeEach(() => {
@@ -118,7 +121,7 @@ describe("FlashcardGenerationService.sanitizeFlashcards()", () => {
 describe("FlashcardGenerationService.generateFlashCards()", () => {
   it("returns flashcards on success", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValueOnce({
+    mockCreate().mockResolvedValueOnce({
       choices: [
         {
           message: {
@@ -140,7 +143,7 @@ describe("FlashcardGenerationService.generateFlashCards()", () => {
   it("retries and falls back when all attempts fail", async () => {
     const svc = buildService();
     svc.MAX_GENERATION_ATTEMPTS = 2;
-    mockCreate(svc).mockRejectedValue(new Error("AI unavailable"));
+    mockCreate().mockRejectedValue(new Error("AI unavailable"));
 
     await expect(svc.generateFlashCards("content", [], 1)).rejects.toThrow();
   });
@@ -150,7 +153,7 @@ describe("FlashcardGenerationService.generateFlashCards()", () => {
     svc.MAX_GENERATION_ATTEMPTS = 1;
 
     // All attempts return similar cards that get filtered by dedup, then final attempt also fails
-    mockCreate(svc).mockRejectedValue(new Error("AI error"));
+    mockCreate().mockRejectedValue(new Error("AI error"));
 
     await expect(
       svc.generateFlashCards("content", ["What is the topic?"], 1),
@@ -174,7 +177,7 @@ describe("FlashcardGenerationService.generateFlashCards()", () => {
       ],
     });
 
-    mockCreate(svc)
+    mockCreate()
       .mockResolvedValueOnce({
         choices: [{ message: { content: duplicatePayload } }],
       })
@@ -193,7 +196,7 @@ describe("FlashcardGenerationService.generateFlashCards()", () => {
 
   it("generateFlashCard returns single card", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValueOnce({
+    mockCreate().mockResolvedValueOnce({
       choices: [
         {
           message: {
@@ -215,7 +218,7 @@ describe("FlashcardGenerationService.generateFlashCards()", () => {
 describe("FlashcardGenerationService.generateFlashCards() — last resort failure path", () => {
   it("throws when all filtered by similarity and last-resort also fails", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
 
     // Same question as existing — filtered by similarity → last resort triggered
     // Last resort also fails

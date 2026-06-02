@@ -1,14 +1,9 @@
-const GroqService = require("./GroqService");
 const TextDeduplication = require("../utils/TextDeduplication");
+const logger = require("../config/logger");
 
-/**
- * Service for AI-based true/false statement generation using Groq.
- * Extends GroqService to reuse the base Groq client and shared helpers.
- * Single Responsibility: only concerns itself with true/false generation logic.
- */
-class TrueFalseGenerationService extends GroqService {
-  constructor(apiKey) {
-    super(apiKey);
+class TrueFalseGenerationService {
+  constructor(groqService) {
+    this.groqService = groqService;
   }
 
   isUsefulExplanation(explanation) {
@@ -35,7 +30,7 @@ class TrueFalseGenerationService extends GroqService {
       return statements;
 
     try {
-      const response = await this.createChatCompletion({
+      const response = await this.groqService.createChatCompletion({
         messages: [
           {
             role: "system",
@@ -62,15 +57,15 @@ REGLAS OBLIGATORIAS:
             }),
           },
         ],
-        preferredModel: this.fastModel,
-        fallbackModel: this.fastModel,
+        preferredModel: this.groqService.fastModel,
+        fallbackModel: this.groqService.fastModel,
         temperature: 0.25,
         max_completion_tokens: 2000,
         responseFormat: { type: "json_object" },
         stream: false,
       });
 
-      const payload = this.parseJsonPayload(
+      const payload = this.groqService.parseJsonPayload(
         response.choices[0].message.content,
       );
       const improvedItems = Array.isArray(payload?.questions)
@@ -92,7 +87,7 @@ REGLAS OBLIGATORIAS:
         explanation: byIndex.get(index) || s.explanation,
       }));
     } catch (error) {
-      console.warn(
+      logger.warn(
         `TrueFalseGenerationService: no se pudieron mejorar explicaciones, usando version original (${error.message}).`,
       );
       return statements;
@@ -170,15 +165,14 @@ REGLAS OBLIGATORIAS:
     existingStatements = [],
     quantity = 10,
   ) {
-    console.log(
-      `TrueFalseGenerationService: generateTrueFalseStatements model=${this.qualityModel}, quantity=${quantity}, existingStatements=${existingStatements.length}`,
+    logger.info(
+      `TrueFalseGenerationService: generateTrueFalseStatements model=${this.groqService.qualityModel}, quantity=${quantity}, existingStatements=${existingStatements.length}`,
     );
 
     const collected = [];
     const seenStatements = new Set();
-    const maxAttempts = quantity >= 8 ? 2 : this.MAX_GENERATION_ATTEMPTS;
+    const maxAttempts = quantity >= 8 ? 2 : 3;
 
-    // Extract statement texts from existing statements (max 20 to avoid prompt bloat)
     const existingStatementTexts = existingStatements
       .slice(0, 20)
       .map((s) => s.statement || s)
@@ -197,21 +191,21 @@ REGLAS OBLIGATORIAS:
 
       let batch = [];
       try {
-        const response = await this.createChatCompletion({
+        const response = await this.groqService.createChatCompletion({
           messages: this.buildTrueFalseGenerationMessages(
             content,
             requestQuantity,
             excluded,
           ),
-          preferredModel: this.fastModel,
-          fallbackModel: this.fastModel,
+          preferredModel: this.groqService.fastModel,
+          fallbackModel: this.groqService.fastModel,
           temperature: attempt === 1 ? 0.55 : 0.7,
           max_completion_tokens: 2200,
           frequency_penalty: 0.3,
           responseFormat: { type: "json_object" },
           stream: false,
         });
-        const payload = this.parseJsonPayload(
+        const payload = this.groqService.parseJsonPayload(
           response.choices[0].message.content,
         );
         const rawItems = Array.isArray(payload)
@@ -219,7 +213,7 @@ REGLAS OBLIGATORIAS:
           : payload.questions || [payload];
         batch = this.sanitizeTrueFalseStatements(rawItems, requestQuantity);
       } catch (err) {
-        console.warn(
+        logger.warn(
           `TrueFalseGenerationService: intento ${attempt} falló (${err.message}), continuando...`,
         );
         continue;
@@ -229,13 +223,12 @@ REGLAS OBLIGATORIAS:
         const key = item.statement.toLowerCase();
         if (seenStatements.has(key)) continue;
 
-        // Additional deduplication check against existing statements
         if (
           existingStatementTexts.some((existing) =>
             TextDeduplication.isSimilar(item.statement, existing, 92),
           )
         ) {
-          console.debug(
+          logger.debug(
             `TrueFalseGenerationService: descartada afirmación similar a existente: "${item.statement}"`,
           );
           continue;
@@ -247,28 +240,26 @@ REGLAS OBLIGATORIAS:
       }
     }
 
-    // Last resort: if everything was filtered as similar, run one final attempt
-    // without the similarity filter so we always return something.
     if (collected.length === 0 && existingStatementTexts.length > 0) {
-      console.warn(
+      logger.warn(
         `TrueFalseGenerationService: todas las afirmaciones fueron filtradas. Ejecutando intento final sin filtro de similitud...`,
       );
       try {
-        const response = await this.createChatCompletion({
+        const response = await this.groqService.createChatCompletion({
           messages: this.buildTrueFalseGenerationMessages(
             content,
             quantity,
             existingStatementTexts,
           ),
-          preferredModel: this.fastModel,
-          fallbackModel: this.fastModel,
+          preferredModel: this.groqService.fastModel,
+          fallbackModel: this.groqService.fastModel,
           temperature: 0.85,
           max_completion_tokens: 3000,
           frequency_penalty: 0.5,
           responseFormat: { type: "json_object" },
           stream: false,
         });
-        const payload = this.parseJsonPayload(
+        const payload = this.groqService.parseJsonPayload(
           response.choices[0].message.content,
         );
         const rawItems = Array.isArray(payload)
@@ -277,7 +268,7 @@ REGLAS OBLIGATORIAS:
         const lastResort = this.sanitizeTrueFalseStatements(rawItems, quantity);
         collected.push(...lastResort);
       } catch (err) {
-        console.warn(
+        logger.warn(
           `TrueFalseGenerationService: intento final también falló (${err.message}).`,
         );
       }
@@ -285,7 +276,7 @@ REGLAS OBLIGATORIAS:
 
     if (collected.length === 0) {
       throw new Error(
-        `No se pudieron generar afirmaciones válidas tras ${this.MAX_GENERATION_ATTEMPTS} intentos.`,
+        `No se pudieron generar afirmaciones válidas tras 3 intentos.`,
       );
     }
 

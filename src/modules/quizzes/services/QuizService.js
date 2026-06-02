@@ -1,3 +1,4 @@
+const logger = require("../../../shared/config/logger");
 const { QuizDto, QuizQuestionDto } = require("../dtos/QuizDto");
 const {
   ValidationError,
@@ -108,11 +109,11 @@ class QuizService {
         limit: 50,
       });
       existingQuestions = existing.flatMap((q) => q.questions || []) || [];
-      console.log(
+      logger.info(
         `QuizService: loaded ${existingQuestions.length} existing questions from category ${categoryId}`,
       );
     } catch (error) {
-      console.warn(
+      logger.warn(
         `QuizService: failed to fetch existing questions: ${error.message}`,
       );
       // Don't fail the generation if we can't fetch existing ones

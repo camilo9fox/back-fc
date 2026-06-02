@@ -1,13 +1,8 @@
-const GroqService = require("./GroqService");
+const logger = require("../config/logger");
 
-/**
- * Service for AI-based study guide generation using Groq.
- * Extends GroqService to reuse the base Groq client and shared helpers.
- * Single Responsibility: only concerns itself with structured Markdown guide generation.
- */
-class StudyGuideGenerationService extends GroqService {
-  constructor(apiKey) {
-    super(apiKey);
+class StudyGuideGenerationService {
+  constructor(groqService) {
+    this.groqService = groqService;
   }
 
   isPayloadTooLargeError(error) {
@@ -174,7 +169,7 @@ Incluye entre ${reviewQuestionsRange} preguntas abiertas que evalúen comprensi�
     for (let i = 0; i < sections.length; i += 1) {
       const section = sections[i];
       const window = this.extractCoverageWindow(content, i, total, 5600);
-      const response = await this.createChatCompletion({
+      const response = await this.groqService.createChatCompletion({
         messages: [
           {
             role: "system",
@@ -190,8 +185,8 @@ Contexto del documento (${estimatedPages} páginas estimadas):
 ${window}`,
           },
         ],
-        preferredModel: this.qualityModel,
-        fallbackModel: this.fastModel,
+        preferredModel: this.groqService.qualityModel,
+        fallbackModel: this.groqService.fastModel,
         max_completion_tokens: section.tokens,
         temperature: 0.3,
       });
@@ -213,8 +208,6 @@ ${window}`,
 
   async refineGuideQuality(guideMarkdown, scale = {}) {
     try {
-      // With low TPM accounts, refining very long outputs in a second call can
-      // exceed limits; skip refinement for large guides to prioritize success.
       if (String(guideMarkdown || "").length > 7000) {
         return guideMarkdown;
       }
@@ -227,7 +220,7 @@ ${window}`,
         mainPointsMin = 15,
       } = scale;
 
-      const response = await this.createChatCompletion({
+      const response = await this.groqService.createChatCompletion({
         messages: [
           {
             role: "system",
@@ -249,8 +242,8 @@ OBJETIVOS:
               guideMarkdown,
           },
         ],
-        preferredModel: this.qualityModel,
-        fallbackModel: this.fastModel,
+        preferredModel: this.groqService.qualityModel,
+        fallbackModel: this.groqService.fastModel,
         max_completion_tokens: Math.min(
           1100,
           Math.max(500, Math.floor((scale.maxCompletionTokens || 2400) * 0.4)),
@@ -261,7 +254,7 @@ OBJETIVOS:
       const refined = response.choices?.[0]?.message?.content?.trim();
       return refined || guideMarkdown;
     } catch (error) {
-      console.warn(
+      logger.warn(
         `StudyGuideGenerationService: no se pudo refinar la guía (${error.message}).`,
       );
       return guideMarkdown;
@@ -269,8 +262,8 @@ OBJETIVOS:
   }
 
   async generateGuide(content, scale = {}) {
-    console.log(
-      `StudyGuideGenerationService: generateGuide model=${this.qualityModel}`,
+    logger.info(
+      `StudyGuideGenerationService: generateGuide model=${this.groqService.qualityModel}`,
     );
 
     const shouldUseSectionMode = (scale.estimatedPages || 1) > 120;
@@ -282,9 +275,6 @@ OBJETIVOS:
       return this.refineGuideQuality(guideBySections, scale);
     }
 
-    // Cap first attempt at a safe value for 6000-TPM accounts:
-    // ~9000-char context ≈ 2250 input tokens → leaves ~3500 for output.
-    // Subsequent fallbacks progressively reduce both context and output.
     const baseOut = Math.min(scale.maxCompletionTokens || 3000, 3000);
     const attempts = [
       { ratio: 1, contentRatio: 1, outputTokens: baseOut, hardChars: 9000 },
@@ -328,10 +318,10 @@ OBJETIVOS:
         const scopedContent = this.trimAtSentence(content, boundedChars);
         const messages = this._buildMessages(scopedContent, scaled);
 
-        const response = await this.createChatCompletion({
+        const response = await this.groqService.createChatCompletion({
           messages,
-          preferredModel: this.qualityModel,
-          fallbackModel: this.fastModel,
+          preferredModel: this.groqService.qualityModel,
+          fallbackModel: this.groqService.fastModel,
           max_completion_tokens: Math.max(
             500,
             Math.min(attempt.outputTokens, scaled.maxCompletionTokens || 1200),
@@ -354,7 +344,7 @@ OBJETIVOS:
           throw error;
         }
 
-        console.warn(
+        logger.warn(
           `StudyGuideGenerationService: payload grande, reintentando con contexto más compacto (${error.message}).`,
         );
       }

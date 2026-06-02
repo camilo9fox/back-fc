@@ -1,14 +1,9 @@
-const GroqService = require("./GroqService");
 const TextDeduplication = require("../utils/TextDeduplication");
+const logger = require("../config/logger");
 
-/**
- * Service for AI-based quiz generation using Groq.
- * Extends GroqService to reuse the base Groq client and shared helpers.
- * Single Responsibility: only concerns itself with quiz (multiple-choice) generation logic.
- */
-class QuizGenerationService extends GroqService {
-  constructor(apiKey) {
-    super(apiKey);
+class QuizGenerationService {
+  constructor(groqService) {
+    this.groqService = groqService;
   }
 
   isUsefulExplanation(explanation) {
@@ -34,7 +29,7 @@ class QuizGenerationService extends GroqService {
     if (!Array.isArray(questions) || questions.length === 0) return questions;
 
     try {
-      const response = await this.createChatCompletion({
+      const response = await this.groqService.createChatCompletion({
         messages: [
           {
             role: "system",
@@ -62,15 +57,15 @@ REGLAS OBLIGATORIAS:
             }),
           },
         ],
-        preferredModel: this.fastModel,
-        fallbackModel: this.fastModel,
+        preferredModel: this.groqService.fastModel,
+        fallbackModel: this.groqService.fastModel,
         temperature: 0.25,
         max_completion_tokens: 2000,
         responseFormat: { type: "json_object" },
         stream: false,
       });
 
-      const payload = this.parseJsonPayload(
+      const payload = this.groqService.parseJsonPayload(
         response.choices[0].message.content,
       );
       const improvedItems = Array.isArray(payload?.questions)
@@ -99,11 +94,11 @@ REGLAS OBLIGATORIAS:
         message.includes("Request Entity Too Large");
 
       if (isSizeError) {
-        console.info(
+        logger.info(
           "QuizGenerationService: mejora de explicaciones omitida por tamaño de payload; se usa versión original.",
         );
       } else {
-        console.warn(
+        logger.warn(
           `QuizGenerationService: no se pudieron mejorar explicaciones, usando version original (${error.message}).`,
         );
       }
@@ -207,7 +202,7 @@ ${explanationRules}
   }
 
   async generateQuizQuestions(content, existingQuestions = [], quantity = 5) {
-    console.log(
+    logger.info(
       `QuizGenerationService: generateQuizQuestions quantity=${quantity}, existingQuestions=${existingQuestions.length}`,
     );
 
@@ -219,21 +214,21 @@ ${explanationRules}
     const targetBatchSize = 10;
 
     const requestBatch = async (requestQty, excluded, temperature = 0.6) => {
-      const response = await this.createChatCompletion({
+      const response = await this.groqService.createChatCompletion({
         messages: this.buildQuizGenerationMessages(
           content,
           requestQty,
           excluded,
         ),
-        preferredModel: this.fastModel,
-        fallbackModel: this.fastModel,
+        preferredModel: this.groqService.fastModel,
+        fallbackModel: this.groqService.fastModel,
         temperature,
         max_completion_tokens: 2200,
         frequency_penalty: 0.3,
         responseFormat: { type: "json_object" },
         stream: false,
       });
-      const payload = this.parseJsonPayload(
+      const payload = this.groqService.parseJsonPayload(
         response.choices[0].message.content,
       );
       const rawItems = Array.isArray(payload)
@@ -275,7 +270,7 @@ ${explanationRules}
           );
 
           if (similarToExisting || similarToCollected) {
-            console.debug(
+            logger.debug(
               `QuizGenerationService: descartada pregunta similar: "${item.question}"`,
             );
             continue;
@@ -313,14 +308,12 @@ ${explanationRules}
         );
         addBatch(batch, true);
       } catch (err) {
-        console.warn(
+        logger.warn(
           `QuizGenerationService: intento ${attempt} falló (${err.message}).`,
         );
       }
     }
 
-    // Last resort: if strict semantic dedup leaves a short result, fill remaining
-    // with exact-dedup-only questions to avoid front-end failures.
     for (
       let fillAttempt = 1;
       fillAttempt <= 1 && collected.length < quantity;
@@ -329,7 +322,7 @@ ${explanationRules}
       const remaining = quantity - collected.length;
       const excluded = buildExcluded();
 
-      console.warn(
+      logger.warn(
         `QuizGenerationService: fill ${fillAttempt}/1 para completar ${remaining} preguntas (dedup semántica relajada).`,
       );
 
@@ -338,7 +331,7 @@ ${explanationRules}
         const batch = await requestBatch(requestQty, excluded, 0.8);
         addBatch(batch, false);
       } catch (err) {
-        console.warn(
+        logger.warn(
           `QuizGenerationService: fill ${fillAttempt} falló (${err.message}).`,
         );
       }
@@ -348,7 +341,7 @@ ${explanationRules}
       throw new Error("No se pudieron generar preguntas válidas.");
     }
     if (collected.length < quantity) {
-      console.warn(
+      logger.warn(
         `QuizGenerationService: se generaron ${collected.length}/${quantity} preguntas.`,
       );
     }

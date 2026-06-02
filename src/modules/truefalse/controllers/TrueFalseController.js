@@ -1,3 +1,4 @@
+const logger = require("../../../shared/config/logger");
 const { AppError } = require("../../../shared/errors/AppError");
 
 class TrueFalseController {
@@ -255,7 +256,7 @@ class TrueFalseController {
   }
 
   _handleError(error, res) {
-    console.error("TrueFalseController error:", error.message);
+    logger.error("TrueFalseController error:", error.message);
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }

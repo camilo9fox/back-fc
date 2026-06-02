@@ -5,6 +5,7 @@ jest.mock("groq-sdk", () => {
   const MockGroq = jest.fn().mockImplementation(() => ({
     chat: { completions: { create: mockCreate } },
   }));
+  MockGroq._mockCreate = mockCreate;
   return { Groq: MockGroq };
 });
 
@@ -18,14 +19,17 @@ jest.mock("../../../src/shared/config/logger", () => ({
 const StudyGuideGenerationService = require("../../../src/shared/services/StudyGuideGenerationService");
 
 function buildService() {
-  const svc = new StudyGuideGenerationService("test-key");
-  svc.RATE_LIMIT_RETRIES_PER_MODEL = 1;
-  svc.modelFallbackChain = ["fast-model"];
+  const GroqService = require("../../../src/shared/services/GroqService");
+  const groqService = new GroqService("test-key");
+  groqService.RATE_LIMIT_RETRIES_PER_MODEL = 1;
+  groqService.modelFallbackChain = ["fast-model"];
+  const svc = new StudyGuideGenerationService(groqService);
   return svc;
 }
 
-function mockCreate(svc) {
-  return svc.groq.chat.completions.create;
+function mockCreate() {
+  const Groq = require("groq-sdk").Groq;
+  return Groq._mockCreate;
 }
 
 describe("StudyGuideGenerationService.isPayloadTooLargeError()", () => {
@@ -83,7 +87,7 @@ describe("StudyGuideGenerationService.buildFallbackScale()", () => {
 describe("StudyGuideGenerationService.generateGuide()", () => {
   it("returns guide text on success", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValue({
+    mockCreate().mockResolvedValue({
       choices: [{ message: { content: "## Resumen Ejecutivo\nContent here" } }],
     });
 
@@ -96,7 +100,7 @@ describe("StudyGuideGenerationService.generateGuide()", () => {
 
   it("uses section mode when estimatedPages > 120", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValue({
+    mockCreate().mockResolvedValue({
       choices: [
         { message: { content: "## Resumen Ejecutivo\nSection content here." } },
       ],
@@ -112,7 +116,7 @@ describe("StudyGuideGenerationService.generateGuide()", () => {
     largeError.status = 413;
 
     // First attempt fails with payload error, second succeeds
-    mockCreate(svc)
+    mockCreate()
       .mockRejectedValueOnce(largeError)
       .mockResolvedValue({
         choices: [{ message: { content: "## Resumen\nContent." } }],
@@ -124,7 +128,7 @@ describe("StudyGuideGenerationService.generateGuide()", () => {
 
   it("throws non-payload-large errors immediately", async () => {
     const svc = buildService();
-    mockCreate(svc).mockRejectedValue(new Error("Server error"));
+    mockCreate().mockRejectedValue(new Error("Server error"));
     await expect(svc.generateGuide("content", {})).rejects.toThrow(
       "Server error",
     );
@@ -134,14 +138,14 @@ describe("StudyGuideGenerationService.generateGuide()", () => {
     const svc = buildService();
     const largeError = new Error("context_length_exceeded");
     largeError.status = 413;
-    mockCreate(svc).mockRejectedValue(largeError);
+    mockCreate().mockRejectedValue(largeError);
 
     await expect(svc.generateGuide("content", {})).rejects.toThrow();
   });
 
   it("refineGuideQuality returns original when AI throws", async () => {
     const svc = buildService();
-    mockCreate(svc).mockRejectedValue(new Error("Refine failed"));
+    mockCreate().mockRejectedValue(new Error("Refine failed"));
     const result = await svc.refineGuideQuality("## Guide Content Here", {});
     expect(result).toBe("## Guide Content Here");
   });
@@ -177,7 +181,7 @@ describe("StudyGuideGenerationService.extractCoverageWindow()", () => {
 describe("StudyGuideGenerationService.generateGuideBySections()", () => {
   it("returns guide built from sections", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockResolvedValue({
       choices: [{ message: { content: "## Section Content" } }],
     });
@@ -191,7 +195,7 @@ describe("StudyGuideGenerationService.generateGuideBySections()", () => {
 
   it("throws when all sections return empty", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockResolvedValue({ choices: [{ message: { content: "" } }] });
 
     await expect(svc.generateGuideBySections("content", {})).rejects.toThrow(
@@ -203,7 +207,7 @@ describe("StudyGuideGenerationService.generateGuideBySections()", () => {
 describe("StudyGuideGenerationService.generateGuide() — non-payload error", () => {
   it("throws non-payload-too-large errors immediately", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockRejectedValue(new Error("unexpected server error"));
 
     await expect(
@@ -213,7 +217,7 @@ describe("StudyGuideGenerationService.generateGuide() — non-payload error", ()
 
   it("throws when AI returns empty content", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockResolvedValueOnce({ choices: [{ message: { content: "" } }] });
 
     await expect(svc.generateGuide("content", {})).rejects.toThrow(

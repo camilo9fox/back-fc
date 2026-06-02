@@ -1,5 +1,6 @@
 const { createClient } = require("@supabase/supabase-js");
 const config = require("../../../../shared/config/config");
+const logger = require("../../../../shared/config/logger");
 
 /**
  * Repository for authentication operations using Supabase Auth
@@ -36,7 +37,7 @@ class SupabaseAuthRepository {
       });
 
       if (error) {
-        console.error("Supabase signUp error:", error);
+        logger.error("Supabase signUp error:", error);
         throw new Error(`Error creating user: ${error.message}`);
       }
 
@@ -49,7 +50,7 @@ class SupabaseAuthRepository {
         },
       };
     } catch (error) {
-      console.error("SupabaseAuthRepository.signUp error:", error);
+      logger.error("SupabaseAuthRepository.signUp error:", error);
       throw error;
     }
   }
@@ -68,7 +69,7 @@ class SupabaseAuthRepository {
       });
 
       if (error) {
-        console.error("Supabase signIn error:", error);
+        logger.error("Supabase signIn error:", error);
         throw new Error(`Error signing in: ${error.message}`);
       }
 
@@ -86,7 +87,7 @@ class SupabaseAuthRepository {
         },
       };
     } catch (error) {
-      console.error("SupabaseAuthRepository.signIn error:", error);
+      logger.error("SupabaseAuthRepository.signIn error:", error);
       throw error;
     }
   }
@@ -113,7 +114,7 @@ class SupabaseAuthRepository {
       });
 
       if (error) {
-        console.error("Supabase OAuth signIn error:", error);
+        logger.error("Supabase OAuth signIn error:", error);
         throw new Error(`Error with OAuth: ${error.message}`);
       }
 
@@ -121,7 +122,7 @@ class SupabaseAuthRepository {
         url: data.url,
       };
     } catch (error) {
-      console.error("SupabaseAuthRepository.signInWithOAuth error:", error);
+      logger.error("SupabaseAuthRepository.signInWithOAuth error:", error);
       throw error;
     }
   }
@@ -141,7 +142,7 @@ class SupabaseAuthRepository {
       void userId;
       return true;
     } catch (error) {
-      console.error("SupabaseAuthRepository.signOut error:", error);
+      logger.error("SupabaseAuthRepository.signOut error:", error);
       throw error;
     }
   }
@@ -157,7 +158,7 @@ class SupabaseAuthRepository {
         await this.supabase.auth.admin.getUserById(userId);
 
       if (error) {
-        console.error("Supabase getUserById error:", error);
+        logger.error("Supabase getUserById error:", error);
         return null;
       }
 
@@ -168,7 +169,7 @@ class SupabaseAuthRepository {
         metadata: data.user.user_metadata,
       };
     } catch (error) {
-      console.error("SupabaseAuthRepository.getUserById error:", error);
+      logger.error("SupabaseAuthRepository.getUserById error:", error);
       return null;
     }
   }
@@ -191,13 +192,13 @@ class SupabaseAuthRepository {
       });
 
       if (error) {
-        console.error("Supabase resetPassword error:", error);
+        logger.error("Supabase resetPassword error:", error);
         throw new Error(`Error resetting password: ${error.message}`);
       }
 
       return true;
     } catch (error) {
-      console.error("SupabaseAuthRepository.resetPassword error:", error);
+      logger.error("SupabaseAuthRepository.resetPassword error:", error);
       throw error;
     }
   }
@@ -215,13 +216,13 @@ class SupabaseAuthRepository {
       });
 
       if (error) {
-        console.error("Supabase updatePassword error:", error);
+        logger.error("Supabase updatePassword error:", error);
         throw new Error(`Error updating password: ${error.message}`);
       }
 
       return true;
     } catch (error) {
-      console.error("SupabaseAuthRepository.updatePassword error:", error);
+      logger.error("SupabaseAuthRepository.updatePassword error:", error);
       throw error;
     }
   }
@@ -243,7 +244,7 @@ class SupabaseAuthRepository {
       );
 
       if (error) {
-        console.error("Supabase updateUser error:", error);
+        logger.error("Supabase updateUser error:", error);
         throw new Error(`Error updating user: ${error.message}`);
       }
 
@@ -254,7 +255,7 @@ class SupabaseAuthRepository {
         metadata: data.user.user_metadata,
       };
     } catch (error) {
-      console.error("SupabaseAuthRepository.updateUser error:", error);
+      logger.error("SupabaseAuthRepository.updateUser error:", error);
       throw error;
     }
   }
@@ -269,13 +270,13 @@ class SupabaseAuthRepository {
       const { error } = await this.supabase.auth.admin.deleteUser(userId);
 
       if (error) {
-        console.error("Supabase deleteUser error:", error);
+        logger.error("Supabase deleteUser error:", error);
         throw new Error(`Error deleting account: ${error.message}`);
       }
 
       return true;
     } catch (error) {
-      console.error("SupabaseAuthRepository.deleteAccount error:", error);
+      logger.error("SupabaseAuthRepository.deleteAccount error:", error);
       throw error;
     }
   }
@@ -300,7 +301,7 @@ class SupabaseAuthRepository {
         metadata: data.user.user_metadata,
       };
     } catch (error) {
-      console.error("SupabaseAuthRepository.verifySession error:", error);
+      logger.error("SupabaseAuthRepository.verifySession error:", error);
       return null;
     }
   }

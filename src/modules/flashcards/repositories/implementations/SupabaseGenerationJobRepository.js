@@ -1,5 +1,6 @@
 const { createClient } = require("@supabase/supabase-js");
 const config = require("../../../../shared/config/config");
+const logger = require("../../../../shared/config/logger");
 
 /**
  * Supabase-backed repository for generation jobs.
@@ -84,7 +85,7 @@ class SupabaseGenerationJobRepository {
       .lt("expires_at", new Date().toISOString());
 
     if (error)
-      console.warn("GenerationJobRepo.deleteExpired error:", error.message);
+      logger.warn("GenerationJobRepo.deleteExpired error:", error.message);
   }
 
   _toJob(row) {

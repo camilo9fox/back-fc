@@ -17,6 +17,10 @@
 --  Changes from v4:
 --    · NEW: flashcard_reviews table (SM-2 spaced repetition state)
 --    · NEW: game_scores table (arcade game records — Survival mode)
+--  Changes from v5 (tickets hardening):
+--    · FIX: removed invalid trigger on tickets_categories (no updated_at column)
+--    · NEW: RLS policy on tickets_categories for authenticated users
+--    · NEW: composite index on support_tickets(user_id, status)
 -- =============================================================
 
 -- ────────────────────────────────────────────
@@ -36,6 +40,11 @@ DROP POLICY IF EXISTS "Read own or public quizzes"                   ON quizzes;
 DROP POLICY IF EXISTS "Read own or public tf sets"                   ON true_false_sets;
 DROP POLICY IF EXISTS "Read quiz questions of own or public quiz"    ON quiz_questions;
 DROP POLICY IF EXISTS "Read tf questions of own or public set"       ON true_false_questions;
+DROP POLICY IF EXISTS "Users can read their own support tickets"     ON support_tickets;
+DROP POLICY IF EXISTS "Users can insert their own support tickets"   ON support_tickets;
+DROP POLICY IF EXISTS "Users can update their own support tickets"   ON support_tickets;
+DROP POLICY IF EXISTS "Users can delete their own support tickets"   ON support_tickets;
+
 
 -- Standalone tables (no child dependencies)
 -- Policies for these are dropped automatically via CASCADE
@@ -58,12 +67,14 @@ DROP TABLE IF EXISTS exam_simulation_multiple_choice_questions CASCADE;
 DROP TABLE IF EXISTS exam_simulation_development_questions CASCADE;
 DROP TABLE IF EXISTS flashcards           CASCADE;
 DROP TABLE IF EXISTS study_guides         CASCADE;
+DROP TABLE IF EXISTS support_tickets         CASCADE;
 
 -- Parent tables
 DROP TABLE IF EXISTS true_false_sets CASCADE;
 DROP TABLE IF EXISTS quizzes          CASCADE;
 DROP TABLE IF EXISTS exam_simulations CASCADE;
 DROP TABLE IF EXISTS categories       CASCADE;
+DROP TABLE IF EXISTS tickets_categories CASCADE;
 
 -- Triggers are dropped automatically with their tables via CASCADE.
 -- Drop the shared trigger function last.
@@ -80,6 +91,57 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE 'plpgsql';
+
+-- ────────────────────────────────────────────
+-- TICKETS CATEGORIES
+-- ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tickets_categories (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name        VARCHAR(255) NOT NULL UNIQUE,
+  description TEXT
+);
+
+ALTER TABLE tickets_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can read ticket categories"
+  ON tickets_categories FOR SELECT USING (auth.role() = 'authenticated');
+
+INSERT INTO tickets_categories (name, description) VALUES
+('Problema técnico', 'Errores, fallos o problemas de rendimiento en la aplicación.'),
+('Cuenta y creditos', 'Preguntas sobre la gestión de la cuenta, créditos de IA, etc.'),
+('Comentarios sobre el contenido', 'Sugerencias o comentarios sobre el contenido de las tarjetas de memoria, cuestionarios o categorías.'),
+('Solicitud de función', 'Sugerencias para nuevas funciones o mejoras en la aplicación.'),
+('Otro', 'Cualquier otro tema no cubierto por las categorías anteriores.')
+ON CONFLICT (name) DO NOTHING;
+
+-- ────────────────────────────────────────────
+-- SUPPORT TICKETS
+-- ────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS support_tickets (
+    id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES tickets_categories(id) ON DELETE SET NULL,
+    subject     VARCHAR(255) NOT NULL,
+    message     TEXT NOT NULL,
+    status      VARCHAR(50) NOT NULL CHECK (status IN ('open', 'in_progress', 'closed')),
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_category_id ON support_tickets(category_id);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_status ON support_tickets(user_id, status);
+
+CREATE TRIGGER update_support_tickets_updated_at
+    BEFORE UPDATE ON support_tickets
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+ALTER TABLE support_tickets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own support tickets"   ON support_tickets FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own support tickets" ON support_tickets FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own support tickets" ON support_tickets FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own support tickets" ON support_tickets FOR DELETE USING (auth.uid() = user_id);
 
 -- ────────────────────────────────────────────
 -- CATEGORIES

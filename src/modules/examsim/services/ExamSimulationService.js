@@ -3,6 +3,7 @@ const {
   NotFoundError,
   ValidationError,
 } = require("../../../shared/errors/AppError");
+const logger = require("../../../shared/config/logger");
 
 class ExamSimulationService {
   constructor(
@@ -222,7 +223,7 @@ class ExamSimulationService {
             );
           if (recovered?.length) break;
         } catch (fallbackError) {
-          console.warn(
+          logger.warn(
             `ExamSimulationService: fallback context failed (${fallbackError.message})`,
           );
         }
@@ -235,7 +236,7 @@ class ExamSimulationService {
       }
 
       developmentQuestions = recovered;
-      console.warn(
+      logger.warn(
         `ExamSimulationService: using fallback context for development generation (${primaryError.message})`,
       );
     }
@@ -593,7 +594,7 @@ class ExamSimulationService {
         };
       });
     } catch (error) {
-      console.warn(
+      logger.warn(
         `ExamSimulationService: AI grading failed, fallback heuristic (${error.message})`,
       );
       return baseBreakdown;

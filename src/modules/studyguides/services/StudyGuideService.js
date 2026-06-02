@@ -2,6 +2,7 @@ const {
   ValidationError,
   NotFoundError,
 } = require("../../../shared/errors/AppError");
+const logger = require("../../../shared/config/logger");
 
 class StudyGuideService {
   constructor(
@@ -146,7 +147,7 @@ class StudyGuideService {
         : null;
     const isSparseDocument = wordsPerPage !== null && wordsPerPage < 120;
 
-    console.log(
+    logger.info(
       `StudyGuideService: estimatedPages=${scale.estimatedPages}, tier=${scale.tier}, ` +
         `wordsPerPage=${wordsPerPage ?? "n/a"}, sparse=${isSparseDocument}`,
     );

@@ -2,6 +2,7 @@ const { createClient } = require("@supabase/supabase-js");
 const config = require("../../../../shared/config/config");
 const IQuizRepository = require("../interfaces/IQuizRepository");
 const { NotFoundError } = require("../../../../shared/errors/AppError");
+const logger = require("../../../../shared/config/logger");
 
 class SupabaseQuizRepository extends IQuizRepository {
   constructor() {
@@ -49,7 +50,7 @@ class SupabaseQuizRepository extends IQuizRepository {
 
       return this.findById(data.id, quizData.userId);
     } catch (error) {
-      console.error("SupabaseQuizRepository.create error:", error);
+      logger.error("SupabaseQuizRepository.create error:", error);
       throw error;
     }
   }
@@ -73,7 +74,7 @@ class SupabaseQuizRepository extends IQuizRepository {
       if (error) throw new Error(`Error fetching quizzes: ${error.message}`);
       return (data || []).map(this._normalize);
     } catch (error) {
-      console.error("SupabaseQuizRepository.findAllByUser error:", error);
+      logger.error("SupabaseQuizRepository.findAllByUser error:", error);
       throw error;
     }
   }
@@ -94,7 +95,7 @@ class SupabaseQuizRepository extends IQuizRepository {
 
       return this._normalize(data);
     } catch (error) {
-      console.error("SupabaseQuizRepository.findById error:", error);
+      logger.error("SupabaseQuizRepository.findById error:", error);
       throw error;
     }
   }
@@ -129,7 +130,7 @@ class SupabaseQuizRepository extends IQuizRepository {
       if (error) throw new Error(`Error updating quiz: ${error.message}`);
       return data;
     } catch (error) {
-      console.error("SupabaseQuizRepository.update error:", error);
+      logger.error("SupabaseQuizRepository.update error:", error);
       throw error;
     }
   }
@@ -145,7 +146,7 @@ class SupabaseQuizRepository extends IQuizRepository {
       if (error) throw new Error(`Error deleting quiz: ${error.message}`);
       return true;
     } catch (error) {
-      console.error("SupabaseQuizRepository.delete error:", error);
+      logger.error("SupabaseQuizRepository.delete error:", error);
       throw error;
     }
   }
@@ -179,7 +180,7 @@ class SupabaseQuizRepository extends IQuizRepository {
       if (error) throw new Error(`Error adding question: ${error.message}`);
       return data;
     } catch (error) {
-      console.error("SupabaseQuizRepository.addQuestion error:", error);
+      logger.error("SupabaseQuizRepository.addQuestion error:", error);
       throw error;
     }
   }
@@ -204,7 +205,7 @@ class SupabaseQuizRepository extends IQuizRepository {
       if (!data) throw new NotFoundError("Quiz not found or access denied");
       return data;
     } catch (error) {
-      console.error("SupabaseQuizRepository.publish error:", error);
+      logger.error("SupabaseQuizRepository.publish error:", error);
       throw error;
     }
   }
@@ -239,7 +240,7 @@ class SupabaseQuizRepository extends IQuizRepository {
       if (error) throw new Error(`Error updating question: ${error.message}`);
       return updated;
     } catch (error) {
-      console.error("SupabaseQuizRepository.updateQuestion error:", error);
+      logger.error("SupabaseQuizRepository.updateQuestion error:", error);
       throw error;
     }
   }
@@ -265,7 +266,7 @@ class SupabaseQuizRepository extends IQuizRepository {
       if (error) throw new Error(`Error deleting question: ${error.message}`);
       return true;
     } catch (error) {
-      console.error("SupabaseQuizRepository.deleteQuestion error:", error);
+      logger.error("SupabaseQuizRepository.deleteQuestion error:", error);
       throw error;
     }
   }

@@ -1,6 +1,7 @@
 const { createClient } = require("@supabase/supabase-js");
 const ICategoryRepository = require("../interfaces/ICategoryRepository");
 const config = require("../../../../shared/config/config");
+const logger = require("../../../../shared/config/logger");
 
 /**
  * Supabase implementation of Category repository
@@ -44,13 +45,13 @@ class SupabaseCategoryRepository extends ICategoryRepository {
         .single();
 
       if (error) {
-        console.error("Supabase create category error:", error);
+        logger.error("Supabase create category error:", error);
         throw new Error(`Error creating category: ${error.message}`);
       }
 
       return data;
     } catch (error) {
-      console.error("SupabaseCategoryRepository.create error:", error);
+      logger.error("SupabaseCategoryRepository.create error:", error);
       throw error;
     }
   }
@@ -75,13 +76,13 @@ class SupabaseCategoryRepository extends ICategoryRepository {
           // No rows returned
           return null;
         }
-        console.error("Supabase findById error:", error);
+        logger.error("Supabase findById error:", error);
         throw new Error(`Error finding category: ${error.message}`);
       }
 
       return data;
     } catch (error) {
-      console.error("SupabaseCategoryRepository.findById error:", error);
+      logger.error("SupabaseCategoryRepository.findById error:", error);
       throw error;
     }
   }
@@ -124,13 +125,13 @@ class SupabaseCategoryRepository extends ICategoryRepository {
       const { data, error } = await query;
 
       if (error) {
-        console.error("Supabase findAll categories error:", error);
+        logger.error("Supabase findAll categories error:", error);
         throw new Error(`Error finding categories: ${error.message}`);
       }
 
       return data || [];
     } catch (error) {
-      console.error("SupabaseCategoryRepository.findAll error:", error);
+      logger.error("SupabaseCategoryRepository.findAll error:", error);
       throw error;
     }
   }
@@ -157,13 +158,13 @@ class SupabaseCategoryRepository extends ICategoryRepository {
           // No rows returned
           return null;
         }
-        console.error("Supabase update category error:", error);
+        logger.error("Supabase update category error:", error);
         throw new Error(`Error updating category: ${error.message}`);
       }
 
       return data;
     } catch (error) {
-      console.error("SupabaseCategoryRepository.update error:", error);
+      logger.error("SupabaseCategoryRepository.update error:", error);
       throw error;
     }
   }
@@ -183,13 +184,13 @@ class SupabaseCategoryRepository extends ICategoryRepository {
         .eq("user_id", userId);
 
       if (error) {
-        console.error("Supabase delete category error:", error);
+        logger.error("Supabase delete category error:", error);
         throw new Error(`Error deleting category: ${error.message}`);
       }
 
       return true;
     } catch (error) {
-      console.error("SupabaseCategoryRepository.delete error:", error);
+      logger.error("SupabaseCategoryRepository.delete error:", error);
       throw error;
     }
   }
@@ -207,13 +208,13 @@ class SupabaseCategoryRepository extends ICategoryRepository {
         .eq("user_id", userId);
 
       if (error) {
-        console.error("Supabase count categories error:", error);
+        logger.error("Supabase count categories error:", error);
         throw new Error(`Error counting categories: ${error.message}`);
       }
 
       return count || 0;
     } catch (error) {
-      console.error("SupabaseCategoryRepository.count error:", error);
+      logger.error("SupabaseCategoryRepository.count error:", error);
       throw error;
     }
   }
@@ -249,7 +250,7 @@ class SupabaseCategoryRepository extends ICategoryRepository {
         (sgRes.count || 0)
       );
     } catch (error) {
-      console.error("SupabaseCategoryRepository.countContent error:", error);
+      logger.error("SupabaseCategoryRepository.countContent error:", error);
       throw error;
     }
   }
@@ -290,7 +291,7 @@ class SupabaseCategoryRepository extends ICategoryRepository {
 
       return { id, is_public: isPublic };
     } catch (error) {
-      console.error("SupabaseCategoryRepository.publish error:", error);
+      logger.error("SupabaseCategoryRepository.publish error:", error);
       throw error;
     }
   }

@@ -5,6 +5,7 @@ jest.mock("groq-sdk", () => {
   const MockGroq = jest.fn().mockImplementation(() => ({
     chat: { completions: { create: mockCreate } },
   }));
+  MockGroq._mockCreate = mockCreate;
   return { Groq: MockGroq };
 });
 
@@ -18,14 +19,17 @@ jest.mock("../../../src/shared/config/logger", () => ({
 const QuizGenerationService = require("../../../src/shared/services/QuizGenerationService");
 
 function buildService() {
-  const svc = new QuizGenerationService("test-key");
-  svc.RATE_LIMIT_RETRIES_PER_MODEL = 1;
-  svc.modelFallbackChain = ["fast-model"];
+  const GroqService = require("../../../src/shared/services/GroqService");
+  const groqService = new GroqService("test-key");
+  groqService.RATE_LIMIT_RETRIES_PER_MODEL = 1;
+  groqService.modelFallbackChain = ["fast-model"];
+  const svc = new QuizGenerationService(groqService);
   return svc;
 }
 
-function mockCreate(svc) {
-  return svc.groq.chat.completions.create;
+function mockCreate() {
+  const Groq = require("groq-sdk").Groq;
+  return Groq._mockCreate;
 }
 
 beforeEach(() => {
@@ -97,7 +101,7 @@ describe("QuizGenerationService.enhanceQuizExplanations()", () => {
   it("returns original questions when AI throws a size error", async () => {
     const svc = buildService();
     const sizeError = new Error("Please reduce the length of your request");
-    mockCreate(svc).mockRejectedValueOnce(sizeError);
+    mockCreate().mockRejectedValueOnce(sizeError);
 
     const questions = [
       { question: "Q?", options: ["A", "B", "C", "D"], correct_answer: "A" },
@@ -108,7 +112,7 @@ describe("QuizGenerationService.enhanceQuizExplanations()", () => {
 
   it("returns original questions when AI throws other error", async () => {
     const svc = buildService();
-    mockCreate(svc).mockRejectedValueOnce(new Error("Random error"));
+    mockCreate().mockRejectedValueOnce(new Error("Random error"));
     const questions = [
       { question: "Q?", options: ["A", "B", "C", "D"], correct_answer: "A" },
     ];
@@ -118,7 +122,7 @@ describe("QuizGenerationService.enhanceQuizExplanations()", () => {
 
   it("returns original questions on payload-too-large error", async () => {
     const svc = buildService();
-    mockCreate(svc).mockRejectedValueOnce(
+    mockCreate().mockRejectedValueOnce(
       new Error("Please reduce the length of your request"),
     );
     const questions = [
@@ -136,7 +140,7 @@ describe("QuizGenerationService.enhanceQuizExplanations()", () => {
 
   it("merges improved explanations on success", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValueOnce({
+    mockCreate().mockResolvedValueOnce({
       choices: [
         {
           message: {
@@ -199,7 +203,7 @@ describe("QuizGenerationService.buildQuizGenerationMessages()", () => {
 describe("QuizGenerationService.generateQuizQuestions()", () => {
   it("returns questions on success", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockReset();
     const payload = JSON.stringify({
       questions: [
@@ -226,7 +230,7 @@ describe("QuizGenerationService.generateQuizQuestions()", () => {
 
   it("throws when AI returns no valid questions after all attempts", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockReset();
     mc.mockRejectedValueOnce(new Error("AI error"));
     mc.mockRejectedValueOnce(new Error("AI error"));
@@ -239,7 +243,7 @@ describe("QuizGenerationService.generateQuizQuestions()", () => {
 
   it("uses last-resort attempt when strict dedup leaves too few results", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockReset();
     // First batch returns questions, but all get filtered by TextDeduplication
     // We simulate by providing existing questions that are identical
@@ -277,7 +281,7 @@ describe("QuizGenerationService.generateQuizQuestions()", () => {
 
   it("discards questions similar to existing (debug log)", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockReset();
     const existingQuestion = "What is photosynthesis?";
     // First 2 attempts return the duplicate, fill attempt returns new question
@@ -318,7 +322,7 @@ describe("QuizGenerationService.generateQuizQuestions()", () => {
 
   it("throws when all attempts fail and collected is 0", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockReset();
     mc.mockRejectedValueOnce(new Error("AI error"));
     mc.mockRejectedValueOnce(new Error("AI error"));

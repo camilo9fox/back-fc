@@ -1,14 +1,9 @@
-const GroqService = require("./GroqService");
 const TextDeduplication = require("../utils/TextDeduplication");
+const logger = require("../config/logger");
 
-/**
- * Service for AI-based flashcard generation using Groq.
- * Extends GroqService to reuse the base Groq client and shared helpers.
- * Single Responsibility: only concerns itself with flashcard generation logic.
- */
-class FlashcardGenerationService extends GroqService {
-  constructor(apiKey) {
-    super(apiKey);
+class FlashcardGenerationService {
+  constructor(groqService) {
+    this.groqService = groqService;
 
     this.IRRELEVANT_CARD_PATTERNS = [
       /\bautor(?:a|es)?\b/i,
@@ -99,15 +94,14 @@ REGLAS OBLIGATORIAS:
     existingQuestions = [],
     quantity = 1,
   ) {
-    console.log(
-      `FlashcardGenerationService: generateFlashCards model=${this.qualityModel}, quantity=${quantity}, existingQuestions=${existingQuestions.length}`,
+    logger.info(
+      `FlashcardGenerationService: generateFlashCards model=${this.groqService.qualityModel}, quantity=${quantity}, existingQuestions=${existingQuestions.length}`,
     );
 
     const collected = [];
     const seenQuestions = new Set();
-    const maxAttempts = quantity >= 8 ? 2 : this.MAX_GENERATION_ATTEMPTS;
+    const maxAttempts = quantity >= 8 ? 2 : 3;
 
-    // Extract question texts from existing questions (max 20 to avoid prompt bloat)
     const existingQuestionTexts = existingQuestions
       .slice(0, 20)
       .map((q) => q.question || q)
@@ -124,14 +118,14 @@ REGLAS OBLIGATORIAS:
 
       let normalizedBatch = [];
       try {
-        const response = await this.createChatCompletion({
+        const response = await this.groqService.createChatCompletion({
           messages: this.buildFlashcardGenerationMessages(
             documentContent,
             requestQuantity,
             excluded,
           ),
-          preferredModel: this.fastModel,
-          fallbackModel: this.fastModel,
+          preferredModel: this.groqService.fastModel,
+          fallbackModel: this.groqService.fastModel,
           temperature: attempt === 1 ? 0.55 : 0.7,
           max_completion_tokens: 2200,
           frequency_penalty: 0.4,
@@ -139,7 +133,7 @@ REGLAS OBLIGATORIAS:
           responseFormat: { type: "json_object" },
           stream: false,
         });
-        const payload = this.parseJsonPayload(
+        const payload = this.groqService.parseJsonPayload(
           response.choices[0].message.content,
         );
         const rawFlashcards = Array.isArray(payload)
@@ -150,7 +144,7 @@ REGLAS OBLIGATORIAS:
           requestQuantity,
         );
       } catch (error) {
-        console.warn(
+        logger.warn(
           `FlashcardGenerationService: intento ${attempt} falló (${error.message}), continuando...`,
         );
         continue;
@@ -160,13 +154,12 @@ REGLAS OBLIGATORIAS:
         const key = flashcard.question.toLowerCase();
         if (seenQuestions.has(key)) continue;
 
-        // Additional deduplication check against existing questions
         if (
           existingQuestionTexts.some((existing) =>
             TextDeduplication.isSimilar(flashcard.question, existing, 92),
           )
         ) {
-          console.debug(
+          logger.debug(
             `FlashcardGenerationService: descartada pregunta similar a existente: "${flashcard.question}"`,
           );
           continue;
@@ -179,21 +172,19 @@ REGLAS OBLIGATORIAS:
       }
     }
 
-    // Last resort: if everything was filtered as similar, run one final attempt
-    // without the similarity filter so we always return something.
     if (collected.length === 0 && existingQuestionTexts.length > 0) {
-      console.warn(
+      logger.warn(
         `FlashcardGenerationService: todas las preguntas fueron filtradas. Ejecutando intento final sin filtro de similitud...`,
       );
       try {
-        const response = await this.createChatCompletion({
+        const response = await this.groqService.createChatCompletion({
           messages: this.buildFlashcardGenerationMessages(
             documentContent,
             quantity,
             existingQuestionTexts,
           ),
-          preferredModel: this.fastModel,
-          fallbackModel: this.fastModel,
+          preferredModel: this.groqService.fastModel,
+          fallbackModel: this.groqService.fastModel,
           temperature: 0.85,
           max_completion_tokens: 3000,
           frequency_penalty: 0.6,
@@ -201,7 +192,7 @@ REGLAS OBLIGATORIAS:
           responseFormat: { type: "json_object" },
           stream: false,
         });
-        const payload = this.parseJsonPayload(
+        const payload = this.groqService.parseJsonPayload(
           response.choices[0].message.content,
         );
         const rawFlashcards = Array.isArray(payload)
@@ -210,7 +201,7 @@ REGLAS OBLIGATORIAS:
         const lastResort = this.sanitizeFlashcards(rawFlashcards, quantity);
         collected.push(...lastResort);
       } catch (err) {
-        console.warn(
+        logger.warn(
           `FlashcardGenerationService: intento final también falló (${err.message}).`,
         );
       }
@@ -218,7 +209,7 @@ REGLAS OBLIGATORIAS:
 
     if (collected.length === 0) {
       throw new Error(
-        `No se pudieron generar flashcards válidas tras ${this.MAX_GENERATION_ATTEMPTS} intentos.`,
+        `No se pudieron generar flashcards válidas tras 3 intentos.`,
       );
     }
 

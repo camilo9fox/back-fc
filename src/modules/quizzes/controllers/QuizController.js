@@ -1,3 +1,4 @@
+const logger = require("../../../shared/config/logger");
 const { AppError } = require("../../../shared/errors/AppError");
 
 class QuizController {
@@ -254,7 +255,7 @@ class QuizController {
   }
 
   _handleError(error, res) {
-    console.error("QuizController error:", error.message);
+    logger.error("QuizController error:", error.message);
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }

@@ -1,3 +1,4 @@
+const logger = require("../../../shared/config/logger");
 const {
   TrueFalseSetDto,
   TrueFalseQuestionDto,
@@ -110,11 +111,11 @@ class TrueFalseService {
         limit: 50,
       });
       existingStatements = existing.flatMap((s) => s.questions || []) || [];
-      console.log(
+      logger.info(
         `TrueFalseService: loaded ${existingStatements.length} existing statements from category ${categoryId}`,
       );
     } catch (error) {
-      console.warn(
+      logger.warn(
         `TrueFalseService: failed to fetch existing statements: ${error.message}`,
       );
       // Don't fail the generation if we can't fetch existing ones

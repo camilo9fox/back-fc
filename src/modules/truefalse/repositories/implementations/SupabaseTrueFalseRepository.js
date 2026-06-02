@@ -2,6 +2,7 @@ const { createClient } = require("@supabase/supabase-js");
 const config = require("../../../../shared/config/config");
 const ITrueFalseRepository = require("../interfaces/ITrueFalseRepository");
 const { NotFoundError } = require("../../../../shared/errors/AppError");
+const logger = require("../../../../shared/config/logger");
 
 class SupabaseTrueFalseRepository extends ITrueFalseRepository {
   constructor() {
@@ -51,7 +52,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
 
       return this.findById(data.id, setData.userId);
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.create error:", error);
+      logger.error("SupabaseTrueFalseRepository.create error:", error);
       throw error;
     }
   }
@@ -78,7 +79,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
         throw new Error(`Error fetching true/false sets: ${error.message}`);
       return (data || []).map(this._normalize);
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.findAllByUser error:", error);
+      logger.error("SupabaseTrueFalseRepository.findAllByUser error:", error);
       throw error;
     }
   }
@@ -101,7 +102,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
 
       return this._normalize(data);
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.findById error:", error);
+      logger.error("SupabaseTrueFalseRepository.findById error:", error);
       throw error;
     }
   }
@@ -137,7 +138,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
         throw new Error(`Error updating true/false set: ${error.message}`);
       return data;
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.update error:", error);
+      logger.error("SupabaseTrueFalseRepository.update error:", error);
       throw error;
     }
   }
@@ -154,7 +155,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
         throw new Error(`Error deleting true/false set: ${error.message}`);
       return true;
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.delete error:", error);
+      logger.error("SupabaseTrueFalseRepository.delete error:", error);
       throw error;
     }
   }
@@ -180,7 +181,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
       if (!data) throw new NotFoundError("Set not found or access denied");
       return data;
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.publish error:", error);
+      logger.error("SupabaseTrueFalseRepository.publish error:", error);
       throw error;
     }
   }
@@ -213,7 +214,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
       if (error) throw new Error(`Error adding question: ${error.message}`);
       return data;
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.addQuestion error:", error);
+      logger.error("SupabaseTrueFalseRepository.addQuestion error:", error);
       throw error;
     }
   }
@@ -245,7 +246,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
       if (error) throw new Error(`Error updating question: ${error.message}`);
       return updated;
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.updateQuestion error:", error);
+      logger.error("SupabaseTrueFalseRepository.updateQuestion error:", error);
       throw error;
     }
   }
@@ -270,7 +271,7 @@ class SupabaseTrueFalseRepository extends ITrueFalseRepository {
       if (error) throw new Error(`Error deleting question: ${error.message}`);
       return true;
     } catch (error) {
-      console.error("SupabaseTrueFalseRepository.deleteQuestion error:", error);
+      logger.error("SupabaseTrueFalseRepository.deleteQuestion error:", error);
       throw error;
     }
   }

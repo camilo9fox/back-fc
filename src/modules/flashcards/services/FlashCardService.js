@@ -1,3 +1,4 @@
+const logger = require("../../../shared/config/logger");
 const FlashCardDto = require("../dtos/FlashCardDto");
 const config = require("../../../shared/config/config");
 const { ValidationError } = require("../../../shared/errors/AppError");
@@ -91,7 +92,7 @@ class FlashCardService {
     documentContent =
       this.documentProcessingService.normalizeText(documentContent);
 
-    console.log(
+    logger.info(
       `FlashCardService: contenido extraído=${documentContent.length} caracteres`,
     );
 
@@ -108,7 +109,7 @@ class FlashCardService {
         );
     }
 
-    console.log(
+    logger.info(
       `FlashCardService: contenido final enviado a Groq=${processedContent.length} caracteres`,
     );
 
@@ -122,11 +123,11 @@ class FlashCardService {
           limit: 50, // Fetch more than we'll use, in case of duplicates
         });
         existingQuestions = existing || [];
-        console.log(
+        logger.info(
           `FlashCardService: loaded ${existingQuestions.length} existing flashcards from category ${categoryId}`,
         );
       } catch (error) {
-        console.warn(
+        logger.warn(
           `FlashCardService: failed to fetch existing questions: ${error.message}`,
         );
         // Don't fail the generation if we can't fetch existing ones

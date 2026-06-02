@@ -1,8 +1,8 @@
-const GroqService = require("./GroqService");
+const logger = require("../config/logger");
 
-class ExamSimulationGenerationService extends GroqService {
-  constructor(apiKey) {
-    super(apiKey);
+class ExamSimulationGenerationService {
+  constructor(groqService) {
+    this.groqService = groqService;
   }
 
   normalizeText(value = "") {
@@ -53,7 +53,7 @@ class ExamSimulationGenerationService extends GroqService {
     if (weakItems.length === 0) return questions;
 
     try {
-      const response = await this.createChatCompletion({
+      const response = await this.groqService.createChatCompletion({
         messages: [
           {
             role: "system",
@@ -73,15 +73,15 @@ class ExamSimulationGenerationService extends GroqService {
             }),
           },
         ],
-        preferredModel: this.fastModel,
-        fallbackModel: this.fastModel,
+        preferredModel: this.groqService.fastModel,
+        fallbackModel: this.groqService.fastModel,
         temperature: 0.2,
         max_completion_tokens: 2200,
         responseFormat: { type: "json_object" },
         stream: false,
       });
 
-      const payload = this.parseJsonPayload(
+      const payload = this.groqService.parseJsonPayload(
         response.choices[0].message.content,
       );
       const repairs = Array.isArray(payload?.repairs) ? payload.repairs : [];
@@ -111,7 +111,7 @@ class ExamSimulationGenerationService extends GroqService {
         };
       });
     } catch (error) {
-      console.warn(
+      logger.warn(
         `ExamSimulationGenerationService: repairDevelopmentItems fallback (${error.message})`,
       );
       return questions;
@@ -146,7 +146,7 @@ class ExamSimulationGenerationService extends GroqService {
 
     if (normalizedItems.length === 0) return [];
 
-    const response = await this.createChatCompletion({
+    const response = await this.groqService.createChatCompletion({
       messages: [
         {
           role: "system",
@@ -179,15 +179,17 @@ REGLAS:
           }),
         },
       ],
-      preferredModel: this.fastModel,
-      fallbackModel: this.fastModel,
+      preferredModel: this.groqService.fastModel,
+      fallbackModel: this.groqService.fastModel,
       temperature: 0.1,
       max_completion_tokens: 2800,
       responseFormat: { type: "json_object" },
       stream: false,
     });
 
-    const payload = this.parseJsonPayload(response.choices[0].message.content);
+    const payload = this.groqService.parseJsonPayload(
+      response.choices[0].message.content,
+    );
     const rawResults = Array.isArray(payload) ? payload : payload.results || [];
     const byId = new Map(
       normalizedItems.map((item) => [item.questionId, item]),
@@ -228,7 +230,7 @@ REGLAS:
   async generateDevelopmentQuestions(content, quantity = 4) {
     const safeQuantity = Math.min(Math.max(Number(quantity) || 4, 1), 10);
 
-    const response = await this.createChatCompletion({
+    const response = await this.groqService.createChatCompletion({
       messages: [
         {
           role: "system",
@@ -249,15 +251,17 @@ REGLAS OBLIGATORIAS:
           content: `Material de estudio:\n${content}\n\nGenera ${safeQuantity} preguntas de desarrollo exigentes pero justas.`,
         },
       ],
-      preferredModel: this.fastModel,
-      fallbackModel: this.fastModel,
+      preferredModel: this.groqService.fastModel,
+      fallbackModel: this.groqService.fastModel,
       temperature: 0.5,
       max_completion_tokens: 2200,
       responseFormat: { type: "json_object" },
       stream: false,
     });
 
-    const payload = this.parseJsonPayload(response.choices[0].message.content);
+    const payload = this.groqService.parseJsonPayload(
+      response.choices[0].message.content,
+    );
     const rawItems = Array.isArray(payload) ? payload : payload.questions || [];
 
     const normalized = [];

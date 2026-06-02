@@ -5,6 +5,7 @@ jest.mock("groq-sdk", () => {
   const MockGroq = jest.fn().mockImplementation(() => ({
     chat: { completions: { create: mockCreate } },
   }));
+  MockGroq._mockCreate = mockCreate;
   return { Groq: MockGroq };
 });
 
@@ -18,14 +19,17 @@ jest.mock("../../../src/shared/config/logger", () => ({
 const TrueFalseGenerationService = require("../../../src/shared/services/TrueFalseGenerationService");
 
 function buildService() {
-  const svc = new TrueFalseGenerationService("test-key");
-  svc.RATE_LIMIT_RETRIES_PER_MODEL = 1;
-  svc.modelFallbackChain = ["fast-model"];
+  const GroqService = require("../../../src/shared/services/GroqService");
+  const groqService = new GroqService("test-key");
+  groqService.RATE_LIMIT_RETRIES_PER_MODEL = 1;
+  groqService.modelFallbackChain = ["fast-model"];
+  const svc = new TrueFalseGenerationService(groqService);
   return svc;
 }
 
-function mockCreate(svc) {
-  return svc.groq.chat.completions.create;
+function mockCreate() {
+  const Groq = require("groq-sdk").Groq;
+  return Groq._mockCreate;
 }
 
 beforeEach(() => {
@@ -68,7 +72,7 @@ describe("TrueFalseGenerationService.enhanceTrueFalseExplanations()", () => {
 
   it("returns original statements on AI error", async () => {
     const svc = buildService();
-    mockCreate(svc).mockRejectedValueOnce(new Error("AI error"));
+    mockCreate().mockRejectedValueOnce(new Error("AI error"));
     const statements = [{ statement: "The Earth is round.", is_true: true }];
     const result = await svc.enhanceTrueFalseExplanations(
       "content",
@@ -81,7 +85,7 @@ describe("TrueFalseGenerationService.enhanceTrueFalseExplanations()", () => {
     const svc = buildService();
     const newExplanation =
       "This detailed explanation discusses why the statement is true. Plants use sunlight, water, and carbon dioxide to produce glucose through the process of photosynthesis, which occurs in chloroplasts.";
-    mockCreate(svc).mockResolvedValueOnce({
+    mockCreate().mockResolvedValueOnce({
       choices: [
         {
           message: {
@@ -180,7 +184,7 @@ describe("TrueFalseGenerationService.sanitizeTrueFalseStatements()", () => {
 describe("TrueFalseGenerationService.generateTrueFalseStatements()", () => {
   it("returns statements on success", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     const payload = JSON.stringify({
       questions: [
         {
@@ -203,7 +207,7 @@ describe("TrueFalseGenerationService.generateTrueFalseStatements()", () => {
 
   it("throws when all attempts fail and nothing collected", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockRejectedValueOnce(new Error("AI error"));
     mc.mockRejectedValueOnce(new Error("AI error"));
     mc.mockRejectedValueOnce(new Error("AI error"));
@@ -218,7 +222,7 @@ describe("TrueFalseGenerationService.generateTrueFalseStatements()", () => {
   it("uses last-resort attempt when all filtered by similarity", async () => {
     const svc = buildService();
     svc.MAX_GENERATION_ATTEMPTS = 1;
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockReset();
     // Existing identical statement will be filtered out, triggering last-resort
     const existingText = "The sky is blue";
@@ -258,7 +262,7 @@ describe("TrueFalseGenerationService.generateTrueFalseStatements()", () => {
   it("throws when last-resort also fails with existing statements", async () => {
     const svc = buildService();
     svc.MAX_GENERATION_ATTEMPTS = 1;
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     mc.mockReset();
     mc.mockRejectedValueOnce(new Error("AI error"));
     mc.mockRejectedValueOnce(new Error("AI error"));
@@ -275,7 +279,7 @@ describe("TrueFalseGenerationService.generateTrueFalseStatements()", () => {
 
   it("returns finalStatements directly when more than 6 collected", async () => {
     const svc = buildService();
-    const mc = mockCreate(svc);
+    const mc = mockCreate();
     const manyStatements = Array.from({ length: 7 }, (_, i) => ({
       statement: `Statement number ${i + 1} is unique and different.`,
       is_true: i % 2 === 0,

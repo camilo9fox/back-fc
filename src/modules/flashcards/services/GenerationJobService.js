@@ -1,4 +1,5 @@
 const { randomUUID } = require("crypto");
+const logger = require("../../../shared/config/logger");
 
 const JOB_TTL_MS = 1000 * 60 * 30; // 30 minutes
 
@@ -52,7 +53,7 @@ class GenerationJobService {
     // Persist async — don't block the response
     if (this.repository) {
       this.repository.create(job).catch((err) => {
-        console.warn(
+        logger.warn(
           "GenerationJobService: failed to persist job",
           err.message,
         );
@@ -93,7 +94,7 @@ class GenerationJobService {
 
     if (this.repository) {
       this.repository.update(jobId, userId, patch).catch((err) => {
-        console.warn("GenerationJobService: failed to update job", err.message);
+        logger.warn("GenerationJobService: failed to update job", err.message);
       });
     }
 

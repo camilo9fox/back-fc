@@ -1,4 +1,5 @@
 ﻿const { parentPort, workerData } = require('worker_threads');
+const logger = require('../config/logger');
 
 async function extractWithMuPdf(buffer) {
   const { default: mupdf } = await import('mupdf');
@@ -29,7 +30,7 @@ async function run() {
   try {
     result = await extractWithMuPdf(buffer);
   } catch (primaryError) {
-    console.warn('pdfParseWorker: mupdf failed, falling back to pdf-parse. Error: ' + primaryError.message);
+    logger.warn('pdfParseWorker: mupdf failed, falling back to pdf-parse. Error: ' + primaryError.message);
     try {
       result = await extractWithPdfParse(buffer);
     } catch (fallbackError) {

@@ -35,6 +35,7 @@ function createApp() {
   const examSimulationRoutes = container.get("examSimulationRoutes");
   const createGamesRouter = require("./modules/games/gamesRoutes");
   const gamesRouter = createGamesRouter();
+  const supportTicketRoutes = container.get("supportTicketRoutes");
 
   // Security headers
   app.use(helmet());
@@ -83,6 +84,7 @@ function createApp() {
   app.use("/api/library", libraryRoutes);
   app.use("/api/games", gamesRouter);
   app.use("/api/exam-simulations", examSimulationRoutes);
+  app.use("/api/support-tickets", supportTicketRoutes);
 
   app.use((error, req, res, next) => {
     if (error && error.code === "LIMIT_FILE_SIZE") {

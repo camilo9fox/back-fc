@@ -5,6 +5,7 @@ jest.mock("groq-sdk", () => {
   const MockGroq = jest.fn().mockImplementation(() => ({
     chat: { completions: { create: mockCreate } },
   }));
+  MockGroq._mockCreate = mockCreate;
   return { Groq: MockGroq };
 });
 
@@ -18,14 +19,17 @@ jest.mock("../../../src/shared/config/logger", () => ({
 const ExamSimulationGenerationService = require("../../../src/shared/services/ExamSimulationGenerationService");
 
 function buildService() {
-  const svc = new ExamSimulationGenerationService("test-key");
-  svc.RATE_LIMIT_RETRIES_PER_MODEL = 1;
-  svc.modelFallbackChain = ["fast-model"];
+  const GroqService = require("../../../src/shared/services/GroqService");
+  const groqService = new GroqService("test-key");
+  groqService.RATE_LIMIT_RETRIES_PER_MODEL = 1;
+  groqService.modelFallbackChain = ["fast-model"];
+  const svc = new ExamSimulationGenerationService(groqService);
   return svc;
 }
 
-function mockCreate(svc) {
-  return svc.groq.chat.completions.create;
+function mockCreate() {
+  const Groq = require("groq-sdk").Groq;
+  return Groq._mockCreate;
 }
 
 describe("ExamSimulationGenerationService.normalizeText()", () => {
@@ -74,7 +78,7 @@ describe("ExamSimulationGenerationService.isWeakGeneratedDevelopmentItem()", () 
 describe("ExamSimulationGenerationService.generateDevelopmentQuestions()", () => {
   it("returns questions on success", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValue({
+    mockCreate().mockResolvedValue({
       choices: [
         {
           message: {
@@ -102,7 +106,7 @@ describe("ExamSimulationGenerationService.generateDevelopmentQuestions()", () =>
 
   it("throws when AI returns no valid questions", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValue({
+    mockCreate().mockResolvedValue({
       choices: [
         {
           message: {
@@ -127,7 +131,7 @@ describe("ExamSimulationGenerationService.generateDevelopmentQuestions()", () =>
         "Debe incluir: definicion, etapas, productos y ubicacion en la celula vegetal y sus organelos",
       max_points: 10,
     };
-    mockCreate(svc).mockResolvedValue({
+    mockCreate().mockResolvedValue({
       choices: [
         {
           message: {
@@ -159,7 +163,7 @@ describe("ExamSimulationGenerationService.evaluateDevelopmentAnswers()", () => {
 
   it("returns results on success", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValue({
+    mockCreate().mockResolvedValue({
       choices: [
         {
           message: {
@@ -209,7 +213,7 @@ describe("ExamSimulationGenerationService.evaluateDevelopmentAnswers()", () => {
 
   it("filters out AI results with unknown questionId", async () => {
     const svc = buildService();
-    mockCreate(svc).mockResolvedValueOnce({
+    mockCreate().mockResolvedValueOnce({
       choices: [
         {
           message: {
@@ -261,7 +265,7 @@ describe("ExamSimulationGenerationService.repairDevelopmentItems()", () => {
 
   it("falls back to original on AI error", async () => {
     const svc = buildService();
-    mockCreate(svc).mockRejectedValue(new Error("AI error"));
+    mockCreate().mockRejectedValue(new Error("AI error"));
     const questions = [
       {
         prompt: "Explain something",
@@ -295,7 +299,7 @@ describe("ExamSimulationGenerationService.repairDevelopmentItems()", () => {
         },
       ],
     });
-    mockCreate(svc).mockResolvedValueOnce({
+    mockCreate().mockResolvedValueOnce({
       choices: [{ message: { content: repairPayload } }],
     });
 
@@ -316,7 +320,7 @@ describe("ExamSimulationGenerationService.repairDevelopmentItems()", () => {
     const repairPayload = JSON.stringify({
       repairs: [{ index: "not-a-number", reference_answer: "improved" }],
     });
-    mockCreate(svc).mockResolvedValueOnce({
+    mockCreate().mockResolvedValueOnce({
       choices: [{ message: { content: repairPayload } }],
     });
 

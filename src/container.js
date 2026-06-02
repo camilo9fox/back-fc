@@ -47,19 +47,19 @@ class Container {
       return new GroqService(config.groqApiKey);
     });
 
-    container.register("flashcardGenerationService", () => {
+    container.register("flashcardGenerationService", (c) => {
       const FlashcardGenerationService = require("./shared/services/FlashcardGenerationService");
-      return new FlashcardGenerationService(config.groqApiKey);
+      return new FlashcardGenerationService(c.get("groqService"));
     });
 
-    container.register("quizGenerationService", () => {
+    container.register("quizGenerationService", (c) => {
       const QuizGenerationService = require("./shared/services/QuizGenerationService");
-      return new QuizGenerationService(config.groqApiKey);
+      return new QuizGenerationService(c.get("groqService"));
     });
 
-    container.register("trueFalseGenerationService", () => {
+    container.register("trueFalseGenerationService", (c) => {
       const TrueFalseGenerationService = require("./shared/services/TrueFalseGenerationService");
-      return new TrueFalseGenerationService(config.groqApiKey);
+      return new TrueFalseGenerationService(c.get("groqService"));
     });
 
     container.register("pdfRendererService", () => {
@@ -272,14 +272,14 @@ class Container {
     });
 
     // Study Guide services
-    container.register("studyGuideGenerationService", () => {
+    container.register("studyGuideGenerationService", (c) => {
       const StudyGuideGenerationService = require("./shared/services/StudyGuideGenerationService");
-      return new StudyGuideGenerationService(config.groqApiKey);
+      return new StudyGuideGenerationService(c.get("groqService"));
     });
 
-    container.register("examSimulationGenerationService", () => {
+    container.register("examSimulationGenerationService", (c) => {
       const ExamSimulationGenerationService = require("./shared/services/ExamSimulationGenerationService");
-      return new ExamSimulationGenerationService(config.groqApiKey);
+      return new ExamSimulationGenerationService(c.get("groqService"));
     });
 
     container.register("studyGuideRepository", () => {
@@ -415,6 +415,26 @@ class Container {
     container.register("libraryRoutes", (c) => {
       const createLibraryRouter = require("./modules/library/routes/libraryRoutes");
       return createLibraryRouter(c.get("libraryController"));
+    });
+
+    container.register("supportTicketRepository", () => {
+      const SupabaseSupportTicketRepository = require("./modules/tickets/repositories/implementations/SupabaseSupportTicketRepository");
+      return new SupabaseSupportTicketRepository();
+    });
+
+    container.register("supportTicketService", (c) => {
+      const SupportTicketService = require("./modules/tickets/services/SupportTicketService");
+      return new SupportTicketService(c.get("supportTicketRepository"));
+    });
+
+    container.register("supportTicketController", (c) => {
+      const SupportTicketController = require("./modules/tickets/controllers/SupportTicketController");
+      return new SupportTicketController(c.get("supportTicketService"));
+    });
+
+    container.register("supportTicketRoutes", (c) => {
+      const createSupportTicketRouter = require("./modules/tickets/routes/supportTicketRoutes");
+      return createSupportTicketRouter(c.get("supportTicketController"));
     });
 
     return container;
