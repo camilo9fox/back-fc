@@ -14,6 +14,7 @@ const {
 const requestTimeout = require("./shared/middleware/requestTimeout");
 const sanitizeBody = require("./shared/middleware/sanitize");
 const { AppError } = require("./shared/errors/AppError");
+const { createClient } = require("@supabase/supabase-js");
 
 /**
  * Builds and configures the Express application.
@@ -51,8 +52,31 @@ function createApp() {
   app.use(sanitizeBody);
 
   // Health check (skip rate limiter)
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  app.get("/api/health", async (req, res) => {
+    let dbStatus = "unknown";
+    let dbError = null;
+
+    try {
+      const supabase = createClient(
+        config.supabase.url,
+        config.supabase.serviceRoleKey,
+        { auth: { persistSession: false } },
+      );
+      const { error } = await supabase
+        .from("categories")
+        .select("id", { count: "exact", head: true });
+      dbStatus = error ? "error" : "connected";
+      dbError = error ? error.message : null;
+    } catch (err) {
+      dbStatus = "error";
+      dbError = err.message;
+    }
+
+    res.json({
+      status: dbStatus === "connected" ? "ok" : "degraded",
+      timestamp: new Date().toISOString(),
+      database: { status: dbStatus, error: dbError },
+    });
   });
 
   // General API rate limiter

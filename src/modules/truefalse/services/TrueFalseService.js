@@ -12,14 +12,14 @@ class TrueFalseService {
   constructor(
     trueFalseRepository,
     categoryService,
-    groqService,
+    generationService,
     fileService,
     documentProcessingService,
     contentSafetyService,
   ) {
     this.trueFalseRepository = trueFalseRepository;
     this.categoryService = categoryService;
-    this.groqService = groqService;
+    this.generationService = generationService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
     this.contentSafetyService = contentSafetyService;
@@ -98,7 +98,7 @@ class TrueFalseService {
     report("Analizando el documento", 30);
     content = await this.documentProcessingService.buildStudyContext(
       content,
-      this.groqService,
+      this.generationService,
       {
         maxLength: 4500,
         fastPathMaxInputChars: 260000,
@@ -128,7 +128,7 @@ class TrueFalseService {
       // Don't fail the generation if we can't fetch existing ones
     }
 
-    const rawStatements = await this.groqService.generateTrueFalseStatements(
+    const rawStatements = await this.generationService.generateTrueFalseStatements(
       content,
       existingStatements,
       quantity,
