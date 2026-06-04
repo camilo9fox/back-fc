@@ -1,11 +1,13 @@
 const express = require("express");
 const { authMiddleware } = require("../../shared/middleware/auth");
+const { perUserApiLimiter } = require("../../shared/middleware/rateLimiter");
 
 function createCategoryRouter(categoryController) {
   const router = express.Router();
 
   // All category routes require authentication
   router.use(authMiddleware);
+  router.use(perUserApiLimiter);
 
   // Create a new category
   router.post("/", (req, res) => categoryController.createCategory(req, res));

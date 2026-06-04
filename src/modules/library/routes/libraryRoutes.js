@@ -1,10 +1,12 @@
 const express = require("express");
 const { authMiddleware } = require("../../../shared/middleware/auth");
+const { perUserApiLimiter } = require("../../../shared/middleware/rateLimiter");
 
 function createLibraryRouter(controller) {
   const router = express.Router();
 
   router.use(authMiddleware);
+  router.use(perUserApiLimiter);
 
   // List public study topics (categories) with content counts
   router.get("/", (req, res) => controller.getCategories(req, res));

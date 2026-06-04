@@ -1,10 +1,12 @@
 const express = require("express");
 const { authMiddleware } = require("../../../shared/middleware/auth");
+const { perUserApiLimiter } = require("../../../shared/middleware/rateLimiter");
 
 function createSupportTicketRouter(controller) {
   const router = express.Router();
 
   router.use(authMiddleware);
+  router.use(perUserApiLimiter);
   router.post("/", (req, res) => controller.createSupportTicket(req, res));
   router.get("/", (req, res) => controller.getSupportTicketsByUser(req, res));
   router.get("/categories", (req, res) =>

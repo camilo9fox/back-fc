@@ -1,10 +1,12 @@
 const express = require("express");
 const { authMiddleware } = require("../../../shared/middleware/auth");
+const { perUserApiLimiter } = require("../../../shared/middleware/rateLimiter");
 
 function createAttemptRouter(controller) {
   const router = express.Router();
 
   router.use(authMiddleware);
+  router.use(perUserApiLimiter);
 
   router.post("/quiz", (req, res) => controller.recordQuizAttempt(req, res));
   router.post("/true-false", (req, res) =>

@@ -4,6 +4,7 @@ const { authMiddleware } = require("../../../shared/middleware/auth");
 const {
   authLimiter,
   resetPasswordLimiter,
+  perUserApiLimiter,
 } = require("../../../shared/middleware/rateLimiter");
 
 /**
@@ -49,39 +50,35 @@ class AuthRoutes {
     );
 
     // Protected routes (authentication required)
+    this.router.use(authMiddleware);
+    this.router.use(perUserApiLimiter);
+
     this.router.post(
       "/signout",
-      authMiddleware,
       this.authController.signOut.bind(this.authController),
     );
     this.router.get(
       "/profile",
-      authMiddleware,
       this.authController.getProfile.bind(this.authController),
     );
     this.router.put(
       "/profile",
-      authMiddleware,
       this.authController.updateProfile.bind(this.authController),
     );
     this.router.get(
       "/onboarding-profile",
-      authMiddleware,
       this.authController.getOnboardingProfile.bind(this.authController),
     );
     this.router.put(
       "/onboarding-profile",
-      authMiddleware,
       this.authController.updateOnboardingProfile.bind(this.authController),
     );
     this.router.put(
       "/password",
-      authMiddleware,
       this.authController.updatePassword.bind(this.authController),
     );
     this.router.delete(
       "/account",
-      authMiddleware,
       this.authController.deleteAccount.bind(this.authController),
     );
   }

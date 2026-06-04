@@ -26,87 +26,84 @@ function createFlashCardRouter(flashCardController, aiUsageMiddleware) {
     },
   });
 
+  router.use(authMiddleware);
+  router.use(perUserApiLimiter);
+
   router.post(
     "/generate-flashcard",
-    authMiddleware,
     aiUsageMiddleware,
-    perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCard(req, res),
   );
 
   router.post(
     "/generate-flashcards",
-    authMiddleware,
     aiUsageMiddleware,
-    perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCards(req, res),
   );
 
   router.post(
     "/generate-flashcards-async",
-    authMiddleware,
     aiUsageMiddleware,
-    perUserApiLimiter,
     upload.single("file"),
     (req, res) => flashCardController.generateFlashCardsAsync(req, res),
   );
 
-  router.get("/generation-jobs/:jobId", authMiddleware, (req, res) =>
+  router.get("/generation-jobs/:jobId", (req, res) =>
     flashCardController.getGenerationJob(req, res),
   );
 
-  router.post("/create-flashcard", authMiddleware, (req, res) =>
+  router.post("/create-flashcard", (req, res) =>
     flashCardController.createManualFlashCard(req, res),
   );
 
-  router.post("/create-flashcards", authMiddleware, (req, res) =>
+  router.post("/create-flashcards", (req, res) =>
     flashCardController.createManualFlashCards(req, res),
   );
 
-  router.post("/save", authMiddleware, (req, res) =>
+  router.post("/save", (req, res) =>
     flashCardController.createManualFlashCards(req, res),
   );
 
   // Spaced repetition endpoints (must be before /:id to avoid route collision)
-  router.get("/due", authMiddleware, (req, res) =>
+  router.get("/due", (req, res) =>
     flashCardController.getDueCards(req, res),
   );
 
-  router.get("/review-stats", authMiddleware, (req, res) =>
+  router.get("/review-stats", (req, res) =>
     flashCardController.getReviewStats(req, res),
   );
 
-  router.get("/search", authMiddleware, (req, res) =>
+  router.get("/search", (req, res) =>
     flashCardController.searchFlashCards(req, res),
   );
 
-  router.get("/export", authMiddleware, (req, res) =>
+  router.get("/export", (req, res) =>
     flashCardController.exportFlashCards(req, res),
   );
 
-  router.post("/:id/review", authMiddleware, (req, res) =>
+  router.post("/:id/review", (req, res) =>
     flashCardController.submitReview(req, res),
   );
 
-  router.get("/", authMiddleware, (req, res) =>
+  router.get("/", (req, res) =>
     flashCardController.getFlashCards(req, res),
   );
 
-  router.patch("/:id", authMiddleware, (req, res) =>
+  router.patch("/:id", (req, res) =>
     flashCardController.updateFlashCard(req, res),
   );
 
-  router.delete("/:id", authMiddleware, (req, res) =>
+  router.delete("/:id", (req, res) =>
     flashCardController.deleteFlashCard(req, res),
   );
 
-  router.get("/:id", authMiddleware, (req, res) =>
+  router.get("/:id", (req, res) =>
     flashCardController.getFlashCardById(req, res),
   );
 
-  router.patch("/category/:categoryId/publish", authMiddleware, (req, res) =>
+  router.patch("/category/:categoryId/publish", (req, res) =>
     flashCardController.publishCategory(req, res),
   );
 

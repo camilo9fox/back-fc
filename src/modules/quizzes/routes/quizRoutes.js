@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const config = require("../../../shared/config/config");
 const { authMiddleware } = require("../../../shared/middleware/auth");
+const { perUserApiLimiter } = require("../../../shared/middleware/rateLimiter");
 
 function createQuizRouter(controller, aiUsageMiddleware) {
   const router = express.Router();
@@ -22,6 +23,7 @@ function createQuizRouter(controller, aiUsageMiddleware) {
   });
 
   router.use(authMiddleware);
+  router.use(perUserApiLimiter);
 
   router.post(
     "/generate",
