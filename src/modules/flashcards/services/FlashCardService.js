@@ -14,12 +14,14 @@ class FlashCardService {
     documentProcessingService,
     flashCardRepository,
     categoryService,
+    contentSafetyService,
   ) {
     this.groqService = groqService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
     this.flashCardRepository = flashCardRepository;
     this.categoryService = categoryService;
+    this.contentSafetyService = contentSafetyService;
     this.MAX_CONTENT_LENGTH = config.limits.maxContentLength;
     this.ASYNC_RECOMMENDED_CONTENT_LENGTH = 5000;
     this.FAST_PATH_MIN_CHUNKS = 6;
@@ -95,6 +97,10 @@ class FlashCardService {
     logger.info(
       `FlashCardService: contenido extraído=${documentContent.length} caracteres`,
     );
+
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkContent(documentContent);
+    }
 
     let processedContent = documentContent;
     if (documentContent.length > this.MAX_CONTENT_LENGTH) {

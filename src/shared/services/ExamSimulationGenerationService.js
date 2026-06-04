@@ -1,8 +1,9 @@
 const logger = require("../config/logger");
 
 class ExamSimulationGenerationService {
-  constructor(groqService) {
+  constructor(groqService, contentSafetyService) {
     this.groqService = groqService;
+    this.contentSafetyService = contentSafetyService;
   }
 
   normalizeText(value = "") {
@@ -292,7 +293,18 @@ REGLAS OBLIGATORIAS:
       );
     }
 
-    return this.repairDevelopmentItems(normalized);
+    const safeItems = await this.contentSafetyService.checkBatch(
+      normalized,
+      (item) => `${item.prompt} ${item.reference_answer || ""} ${item.evaluation_criteria || ""}`,
+    );
+
+    if (safeItems.length === 0) {
+      throw new Error(
+        "La IA no devolvio preguntas de desarrollo validas para la simulacion.",
+      );
+    }
+
+    return this.repairDevelopmentItems(safeItems);
   }
 }
 

@@ -97,7 +97,9 @@ function createApp() {
     // Known domain errors — safe to surface the message
     if (error instanceof AppError) {
       logger.warn(`${error.name}: ${error.message}`);
-      return res.status(error.statusCode).json({ error: error.message });
+      const payload = { error: error.message };
+      if (error.category) payload.category = error.category;
+      return res.status(error.statusCode).json(payload);
     }
 
     // Unknown errors — log full stack, return generic message to avoid info leakage

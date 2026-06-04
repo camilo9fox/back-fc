@@ -6,7 +6,8 @@
 const logger = require("../config/logger");
 
 class DocumentProcessingService {
-  constructor() {
+  constructor(contentSafetyService) {
+    this.contentSafetyService = contentSafetyService;
     this.MAX_CHUNK_LENGTH = 5200;
     this.CHUNK_OVERLAP = 120;
     this.MAX_PARALLEL_CHUNKS = 6;
@@ -502,6 +503,10 @@ class DocumentProcessingService {
     logger.info(
       `DocumentProcessingService.buildStudyContext: entrada=${normalized.length} chars`,
     );
+
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkContent(normalized);
+    }
 
     const cacheKey = this.buildContextCacheKey(normalized, {
       maxLength,

@@ -47,19 +47,25 @@ class Container {
       return new GroqService(config.groqApiKey);
     });
 
+    container.register("contentSafetyService", (c) => {
+      const ContentSafetyService = require("./shared/services/ContentSafetyService");
+      const config = require("./shared/config/config");
+      return new ContentSafetyService(c.get("groqService"), config.contentSafety);
+    });
+
     container.register("flashcardGenerationService", (c) => {
       const FlashcardGenerationService = require("./shared/services/FlashcardGenerationService");
-      return new FlashcardGenerationService(c.get("groqService"));
+      return new FlashcardGenerationService(c.get("groqService"), c.get("contentSafetyService"));
     });
 
     container.register("quizGenerationService", (c) => {
       const QuizGenerationService = require("./shared/services/QuizGenerationService");
-      return new QuizGenerationService(c.get("groqService"));
+      return new QuizGenerationService(c.get("groqService"), c.get("contentSafetyService"));
     });
 
     container.register("trueFalseGenerationService", (c) => {
       const TrueFalseGenerationService = require("./shared/services/TrueFalseGenerationService");
-      return new TrueFalseGenerationService(c.get("groqService"));
+      return new TrueFalseGenerationService(c.get("groqService"), c.get("contentSafetyService"));
     });
 
     container.register("pdfRendererService", () => {
@@ -77,9 +83,9 @@ class Container {
       return new FileService(c.get("pdfRendererService"), c.get("ocrService"));
     });
 
-    container.register("documentProcessingService", () => {
+    container.register("documentProcessingService", (c) => {
       const DocumentProcessingService = require("./shared/services/DocumentProcessingService");
-      return new DocumentProcessingService();
+      return new DocumentProcessingService(c.get("contentSafetyService"));
     });
 
     container.register("generationJobRepository", () => {
@@ -120,6 +126,7 @@ class Container {
         c.get("documentProcessingService"),
         c.get("flashCardRepository"),
         c.get("categoryService"),
+        c.get("contentSafetyService"),
       );
     });
 
@@ -143,6 +150,7 @@ class Container {
       return new ManualFlashCardService(
         c.get("flashCardRepository"),
         c.get("categoryService"),
+        c.get("contentSafetyService"),
       );
     });
 
@@ -192,7 +200,7 @@ class Container {
 
     container.register("categoryService", (c) => {
       const CategoryService = require("./modules/categories/services/CategoryService");
-      return new CategoryService(c.get("categoryRepository"));
+      return new CategoryService(c.get("categoryRepository"), c.get("contentSafetyService"));
     });
 
     container.register("categoryController", (c) => {
@@ -219,6 +227,7 @@ class Container {
         c.get("quizGenerationService"),
         c.get("fileService"),
         c.get("documentProcessingService"),
+        c.get("contentSafetyService"),
       );
     });
 
@@ -252,6 +261,7 @@ class Container {
         c.get("trueFalseGenerationService"),
         c.get("fileService"),
         c.get("documentProcessingService"),
+        c.get("contentSafetyService"),
       );
     });
 
@@ -274,12 +284,12 @@ class Container {
     // Study Guide services
     container.register("studyGuideGenerationService", (c) => {
       const StudyGuideGenerationService = require("./shared/services/StudyGuideGenerationService");
-      return new StudyGuideGenerationService(c.get("groqService"));
+      return new StudyGuideGenerationService(c.get("groqService"), c.get("contentSafetyService"));
     });
 
     container.register("examSimulationGenerationService", (c) => {
       const ExamSimulationGenerationService = require("./shared/services/ExamSimulationGenerationService");
-      return new ExamSimulationGenerationService(c.get("groqService"));
+      return new ExamSimulationGenerationService(c.get("groqService"), c.get("contentSafetyService"));
     });
 
     container.register("studyGuideRepository", () => {
@@ -424,7 +434,7 @@ class Container {
 
     container.register("supportTicketService", (c) => {
       const SupportTicketService = require("./modules/tickets/services/SupportTicketService");
-      return new SupportTicketService(c.get("supportTicketRepository"));
+      return new SupportTicketService(c.get("supportTicketRepository"), c.get("contentSafetyService"));
     });
 
     container.register("supportTicketController", (c) => {

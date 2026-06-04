@@ -2,8 +2,9 @@ const TextDeduplication = require("../utils/TextDeduplication");
 const logger = require("../config/logger");
 
 class TrueFalseGenerationService {
-  constructor(groqService) {
+  constructor(groqService, contentSafetyService) {
     this.groqService = groqService;
+    this.contentSafetyService = contentSafetyService;
   }
 
   isUsefulExplanation(explanation) {
@@ -281,10 +282,27 @@ REGLAS OBLIGATORIAS:
     }
 
     const finalStatements = collected.slice(0, quantity);
-    if (finalStatements.length <= 6) {
-      return this.enhanceTrueFalseExplanations(content, finalStatements);
+
+    const safeStatements = await this.contentSafetyService.checkBatch(
+      finalStatements,
+      (s) => `${s.statement} ${s.explanation || ""}`,
+    );
+
+    if (safeStatements.length === 0) {
+      throw new Error(
+        `No se pudieron generar afirmaciones válidas tras 3 intentos.`,
+      );
     }
-    return finalStatements;
+    if (safeStatements.length < quantity) {
+      logger.warn(
+        `TrueFalseGenerationService: ${safeStatements.length}/${quantity} afirmaciones tras filtro de seguridad.`,
+      );
+    }
+
+    if (safeStatements.length <= 6) {
+      return this.enhanceTrueFalseExplanations(content, safeStatements);
+    }
+    return safeStatements;
   }
 }
 

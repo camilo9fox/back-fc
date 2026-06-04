@@ -2,8 +2,9 @@ const TextDeduplication = require("../utils/TextDeduplication");
 const logger = require("../config/logger");
 
 class FlashcardGenerationService {
-  constructor(groqService) {
+  constructor(groqService, contentSafetyService) {
     this.groqService = groqService;
+    this.contentSafetyService = contentSafetyService;
 
     this.IRRELEVANT_CARD_PATTERNS = [
       /\bautor(?:a|es)?\b/i,
@@ -213,7 +214,18 @@ REGLAS OBLIGATORIAS:
       );
     }
 
-    return collected.slice(0, quantity);
+    const safeCards = await this.contentSafetyService.checkBatch(
+      collected.slice(0, quantity),
+      (card) => `${card.question} ${card.answer}`,
+    );
+
+    if (safeCards.length === 0) {
+      throw new Error(
+        `No se pudieron generar flashcards válidas tras 3 intentos.`,
+      );
+    }
+
+    return safeCards;
   }
 
   async generateFlashCard(documentContent) {

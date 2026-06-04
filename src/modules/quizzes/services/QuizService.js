@@ -12,12 +12,14 @@ class QuizService {
     groqService,
     fileService,
     documentProcessingService,
+    contentSafetyService,
   ) {
     this.quizRepository = quizRepository;
     this.categoryService = categoryService;
     this.groqService = groqService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
+    this.contentSafetyService = contentSafetyService;
   }
 
   async createQuiz(quizData, userId) {
@@ -35,6 +37,11 @@ class QuizService {
       throw new ValidationError(
         "Invalid quiz data: title, categoryId and at least one valid question are required",
       );
+    }
+
+    if (this.contentSafetyService) {
+      const textToCheck = `${dto.title || ""} ${dto.description || ""} ${dto.questions.map(q => `${q.question} ${(q.options || []).join(" ")}`).join(" ")}`;
+      await this.contentSafetyService.checkLocalOnly(textToCheck);
     }
 
     const category = await this.categoryService.getCategoryById(
@@ -184,6 +191,11 @@ class QuizService {
         "Invalid question data: question, options (≥2) and correctAnswer (in options) are required",
       );
     }
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(
+        `${dto.question} ${(dto.options || []).join(" ")}`,
+      );
+    }
     return this.quizRepository.addQuestion(quizId, userId, dto);
   }
 
@@ -198,6 +210,11 @@ class QuizService {
     if (!dto.isValid()) {
       throw new ValidationError(
         "Invalid question data: question, options (≥2) and correctAnswer (in options) are required",
+      );
+    }
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(
+        `${dto.question} ${(dto.options || []).join(" ")}`,
       );
     }
     return this.quizRepository.updateQuestion(questionId, userId, {

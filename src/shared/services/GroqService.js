@@ -489,6 +489,46 @@ class GroqService {
     });
     return response.choices[0].message.content.trim();
   }
+
+  async classifySafety(text) {
+    const safeText = String(text || "").slice(0, 6000);
+
+    try {
+      const response = await this.createChatCompletion({
+        messages: [
+          {
+            role: "user",
+            content: safeText,
+          },
+        ],
+        preferredModel: "meta-llama/llama-prompt-guard-2-86m",
+        fallbackModel: "meta-llama/llama-prompt-guard-2-22m",
+        temperature: 0,
+        max_completion_tokens: 64,
+        stream: false,
+      });
+
+      const rawContent = response.choices?.[0]?.message?.content || "";
+      const trimmed = String(rawContent).trim().toLowerCase();
+
+      if (trimmed.includes("unsafe")) {
+        const categories = [
+          "violent_crimes",
+          "non_violent_crimes",
+          "sexual_content",
+          "hate",
+          "self_harm",
+          "weapons",
+        ];
+        const found = categories.find((c) => trimmed.includes(c));
+        return { safe: false, category: found || "unknown" };
+      }
+
+      return { safe: true };
+    } catch (_error) {
+      return { safe: true };
+    }
+  }
 }
 
 module.exports = GroqService;

@@ -7,9 +7,10 @@ const { ValidationError } = require("../../../shared/errors/AppError");
  * Follows Single Responsibility Principle - only handles manual flashcard operations
  */
 class ManualFlashCardService {
-  constructor(flashCardRepository, categoryService) {
+  constructor(flashCardRepository, categoryService, contentSafetyService) {
     this.flashCardRepository = flashCardRepository;
     this.categoryService = categoryService;
+    this.contentSafetyService = contentSafetyService;
   }
 
   /**
@@ -25,6 +26,10 @@ class ManualFlashCardService {
   async createFlashCard({ question, answer }, userId, categoryId = null) {
     if (!userId) {
       throw new ValidationError("User ID is required to create flashcard");
+    }
+
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(`${question} ${answer}`);
     }
 
     // If no categoryId provided, get the default "General" category
@@ -86,6 +91,10 @@ class ManualFlashCardService {
     for (let i = 0; i < flashCardsData.length; i++) {
       try {
         const validatedCard = this._validateFlashCardData(flashCardsData[i]);
+        if (this.contentSafetyService) {
+          const text = `${validatedCard.question} ${validatedCard.answer}`;
+          await this.contentSafetyService.checkLocalOnly(text);
+        }
         const source = flashCardsData[i].source === "ai" ? "ai" : "manual";
         const cardCategoryId = flashCardsData[i].categoryId || categoryId;
         validatedFlashCards.push({
@@ -130,6 +139,9 @@ class ManualFlashCardService {
   async updateFlashCard(id, userId, { question, answer }) {
     if (!userId) {
       throw new ValidationError("User ID is required to update a flashcard");
+    }
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(`${question || ""} ${answer || ""}`);
     }
     const existing = await this.flashCardRepository.findById(id, userId);
     if (!existing) {

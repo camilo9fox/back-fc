@@ -53,6 +53,14 @@ class TooManyRequestsError extends AppError {
   }
 }
 
+/** 400 — content safety violation */
+class ContentSafetyError extends AppError {
+  constructor(message, category = "unknown") {
+    super(message, 400);
+    this.category = category;
+  }
+}
+
 module.exports = {
   AppError,
   ValidationError,
@@ -61,4 +69,5 @@ module.exports = {
   AuthenticationError,
   ServiceUnavailableError,
   TooManyRequestsError,
+  ContentSafetyError,
 };

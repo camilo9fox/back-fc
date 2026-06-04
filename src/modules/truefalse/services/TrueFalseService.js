@@ -15,12 +15,14 @@ class TrueFalseService {
     groqService,
     fileService,
     documentProcessingService,
+    contentSafetyService,
   ) {
     this.trueFalseRepository = trueFalseRepository;
     this.categoryService = categoryService;
     this.groqService = groqService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
+    this.contentSafetyService = contentSafetyService;
   }
 
   async createSet(setData, userId) {
@@ -38,6 +40,11 @@ class TrueFalseService {
       throw new ValidationError(
         "Invalid set data: title, categoryId and at least one valid question are required",
       );
+    }
+
+    if (this.contentSafetyService) {
+      const textToCheck = `${dto.title || ""} ${dto.description || ""} ${dto.questions.map(q => q.statement || "").join(" ")}`;
+      await this.contentSafetyService.checkLocalOnly(textToCheck);
     }
 
     const category = await this.categoryService.getCategoryById(
@@ -190,6 +197,9 @@ class TrueFalseService {
         "Invalid question data: statement and isTrue (boolean) are required",
       );
     }
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(dto.statement || "");
+    }
     return this.trueFalseRepository.addQuestion(setId, userId, dto);
   }
 
@@ -206,6 +216,9 @@ class TrueFalseService {
       throw new ValidationError(
         "Invalid question data: statement and isTrue (boolean) are required",
       );
+    }
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(dto.statement || "");
     }
     return this.trueFalseRepository.updateQuestion(questionId, userId, {
       statement: dto.statement,

@@ -1,8 +1,9 @@
 const logger = require("../config/logger");
 
 class StudyGuideGenerationService {
-  constructor(groqService) {
+  constructor(groqService, contentSafetyService) {
     this.groqService = groqService;
+    this.contentSafetyService = contentSafetyService;
   }
 
   isPayloadTooLargeError(error) {
@@ -266,15 +267,24 @@ OBJETIVOS:
       `StudyGuideGenerationService: generateGuide model=${this.groqService.qualityModel}`,
     );
 
+    let guide;
+
     const shouldUseSectionMode = (scale.estimatedPages || 1) > 120;
     if (shouldUseSectionMode) {
       const guideBySections = await this.generateGuideBySections(
         content,
         scale,
       );
-      return this.refineGuideQuality(guideBySections, scale);
+      guide = await this.refineGuideQuality(guideBySections, scale);
+    } else {
+      guide = await this._generateSinglePass(content, scale);
     }
 
+    await this.contentSafetyService.checkContent(String(guide || ""));
+    return guide;
+  }
+
+  async _generateSinglePass(content, scale = {}) {
     const baseOut = Math.min(scale.maxCompletionTokens || 3000, 3000);
     const attempts = [
       { ratio: 1, contentRatio: 1, outputTokens: baseOut, hardChars: 9000 },

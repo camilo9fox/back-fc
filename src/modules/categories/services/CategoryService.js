@@ -10,8 +10,9 @@ const {
  * Follows Single Responsibility Principle - only category business logic
  */
 class CategoryService {
-  constructor(categoryRepository) {
+  constructor(categoryRepository, contentSafetyService) {
     this.categoryRepository = categoryRepository;
+    this.contentSafetyService = contentSafetyService;
   }
 
   /**
@@ -24,6 +25,12 @@ class CategoryService {
    */
   async createCategory(categoryData) {
     const validatedData = CategoryDto.validateCreate(categoryData);
+
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(
+        `${validatedData.title || ""} ${validatedData.description || ""}`,
+      );
+    }
 
     const category = await this.categoryRepository.create(validatedData);
     return CategoryDto.toResponse(category);
@@ -68,6 +75,12 @@ class CategoryService {
    */
   async updateCategory(id, userId, updateData) {
     const validatedUpdates = CategoryDto.validateUpdate(updateData);
+
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(
+        `${validatedUpdates.title || ""} ${validatedUpdates.description || ""}`,
+      );
+    }
 
     const category = await this.categoryRepository.update(
       id,

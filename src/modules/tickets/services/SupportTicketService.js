@@ -4,8 +4,9 @@ const {
 } = require("../../../shared/errors/AppError");
 
 class SupportTicketService {
-  constructor(supportTicketRepository) {
+  constructor(supportTicketRepository, contentSafetyService) {
     this.supportTicketRepository = supportTicketRepository;
+    this.contentSafetyService = contentSafetyService;
   }
 
   async createSupportTicket({ userId, categoryId, subject, message }) {
@@ -26,6 +27,10 @@ class SupportTicketService {
       throw new ValidationError(
         "El mensaje debe tener entre 10 y 5000 caracteres.",
       );
+    }
+
+    if (this.contentSafetyService) {
+      await this.contentSafetyService.checkLocalOnly(`${trimmedSubject} ${trimmedMessage}`);
     }
 
     const ticket = await this.supportTicketRepository.createSupportTicket({
@@ -82,6 +87,14 @@ class SupportTicketService {
       throw new ValidationError(
         "No se proporcionaron campos válidos para actualizar.",
       );
+    }
+
+    if (this.contentSafetyService) {
+      const textToCheck = [
+        allowedUpdates.subject || "",
+        allowedUpdates.message || "",
+      ].join(" ");
+      await this.contentSafetyService.checkLocalOnly(textToCheck);
     }
 
     const updatedTicket =

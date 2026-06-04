@@ -50,6 +50,11 @@ const config = {
       examsimulation: Number(process.env.AI_COST_EXAM_SIMULATION) || 2,
     },
   },
+  contentSafety: {
+    enabled: String(process.env.CONTENT_SAFETY_ENABLED || "true") !== "false",
+    strictMode: String(process.env.CONTENT_SAFETY_STRICT || "false") !== "false",
+    localOnly: String(process.env.CONTENT_SAFETY_LOCAL_ONLY || "false") !== "false",
+  },
 };
 
 module.exports = config;

@@ -2,8 +2,9 @@ const TextDeduplication = require("../utils/TextDeduplication");
 const logger = require("../config/logger");
 
 class QuizGenerationService {
-  constructor(groqService) {
+  constructor(groqService, contentSafetyService) {
     this.groqService = groqService;
+    this.contentSafetyService = contentSafetyService;
   }
 
   isUsefulExplanation(explanation) {
@@ -347,7 +348,22 @@ ${explanationRules}
     }
 
     const finalQuestions = collected.slice(0, quantity);
-    return finalQuestions;
+
+    const safeQuestions = await this.contentSafetyService.checkBatch(
+      finalQuestions,
+      (q) => `${q.question} ${(q.options || []).join(" ")} ${q.correct_answer || ""}`,
+    );
+
+    if (safeQuestions.length === 0) {
+      throw new Error("No se pudieron generar preguntas válidas.");
+    }
+    if (safeQuestions.length < quantity) {
+      logger.warn(
+        `QuizGenerationService: ${safeQuestions.length}/${quantity} preguntas tras filtro de seguridad.`,
+      );
+    }
+
+    return safeQuestions;
   }
 }
 

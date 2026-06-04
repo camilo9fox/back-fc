@@ -23,7 +23,8 @@ function buildService() {
   const groqService = new GroqService("test-key");
   groqService.RATE_LIMIT_RETRIES_PER_MODEL = 1;
   groqService.modelFallbackChain = ["fast-model"];
-  const svc = new QuizGenerationService(groqService);
+  const safetyMock = { checkBatch: jest.fn().mockImplementation((items) => items) };
+  const svc = new QuizGenerationService(groqService, safetyMock);
   return svc;
 }
 
