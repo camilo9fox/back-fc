@@ -17,8 +17,9 @@ class GenerationJobService {
    *   Optional Supabase repository. When omitted the service is in-memory only
    *   (useful for testing).
    */
-  constructor(repository = null) {
+  constructor(repository = null, pushNotificationService = null) {
     this.repository = repository;
+    this.pushNotificationService = pushNotificationService;
     /** @type {Map<string, object>} in-memory cache */
     this.cache = new Map();
 
@@ -102,12 +103,44 @@ class GenerationJobService {
   }
 
   completeJob(jobId, userId, result) {
-    return this.updateJob(jobId, userId, {
+    const updated = this.updateJob(jobId, userId, {
       status: "completed",
       progress: { stage: "Completado", percent: 100 },
       result,
       error: null,
     });
+
+    // Send push notification (fire-and-forget)
+    if (this.pushNotificationService) {
+      const typeLabel = this._typeLabel(jobId);
+      this.pushNotificationService
+        .sendToUser(userId, {
+          title: "¡Generación completada!",
+          body: `Tu${typeLabel} está listo para revisar.`,
+          data: { type: this._getJobType(jobId) },
+        })
+        .catch(() => {});
+    }
+
+    return updated;
+  }
+
+  _typeLabel(jobId) {
+    const cached = this.cache.get(jobId);
+    const type = cached?.type || cached?.metadata?.type || "";
+    const labels = {
+      flashcards: "s flashcards",
+      quiz: " cuestionario",
+      truefalse: " set de V/F",
+      studyguide: " guía de estudio",
+      examsim: " simulación de examen",
+    };
+    return labels[type] || " contenido";
+  }
+
+  _getJobType(jobId) {
+    const cached = this.cache.get(jobId);
+    return cached?.type || cached?.metadata?.type || "";
   }
 
   failJob(jobId, userId, error, progress) {

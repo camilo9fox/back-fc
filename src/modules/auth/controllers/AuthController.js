@@ -9,8 +9,9 @@ const logger = require("../../../shared/config/logger");
  * Follows Single Responsibility Principle - only HTTP request/response handling
  */
 class AuthController {
-  constructor(authService) {
+  constructor(authService, pushTokenRepository = null) {
     this.authService = authService;
+    this.pushTokenRepository = pushTokenRepository;
   }
 
   /**
@@ -455,6 +456,33 @@ class AuthController {
       if (error instanceof AppError) {
         return res.status(error.statusCode).json({ error: error.message });
       }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  async registerPushToken(req, res) {
+    try {
+      const userId = req.user?.id;
+      const { token, platform } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+      if (!token) {
+        return res.status(400).json({ error: "Token is required" });
+      }
+
+      if (this.pushTokenRepository) {
+        await this.pushTokenRepository.saveToken(
+          userId,
+          token,
+          platform || "unknown",
+        );
+      }
+
+      res.json({ status: "ok" });
+    } catch (error) {
+      logger.error("AuthController.registerPushToken error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }

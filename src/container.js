@@ -53,6 +53,18 @@ class Container {
       return new ContentSafetyService(c.get("groqService"), config.contentSafety);
     });
 
+    container.register("pushTokenRepository", () => {
+      const SupabasePushTokenRepository = require("./shared/repositories/implementations/SupabasePushTokenRepository");
+      return new SupabasePushTokenRepository();
+    });
+
+    container.register("pushNotificationService", (c) => {
+      const PushNotificationService = require("./shared/services/PushNotificationService");
+      const svc = new PushNotificationService(c.get("pushTokenRepository"));
+      svc.initialize().catch(() => {});
+      return svc;
+    });
+
     container.register("flashcardGenerationService", (c) => {
       const FlashcardGenerationService = require("./shared/services/FlashcardGenerationService");
       return new FlashcardGenerationService(c.get("groqService"), c.get("contentSafetyService"));
@@ -95,7 +107,10 @@ class Container {
 
     container.register("generationJobService", (c) => {
       const GenerationJobService = require("./modules/flashcards/services/GenerationJobService");
-      return new GenerationJobService(c.get("generationJobRepository"));
+      return new GenerationJobService(
+        c.get("generationJobRepository"),
+        c.get("pushNotificationService"),
+      );
     });
 
     container.register("aiUsageRepository", () => {
@@ -166,7 +181,7 @@ class Container {
 
     container.register("authController", (c) => {
       const AuthController = require("./modules/auth/controllers/AuthController");
-      return new AuthController(c.get("authService"));
+      return new AuthController(c.get("authService"), c.get("pushTokenRepository"));
     });
 
     container.register("authRoutes", (c) => {

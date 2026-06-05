@@ -81,6 +81,11 @@ class AuthRoutes {
       "/account",
       this.authController.deleteAccount.bind(this.authController),
     );
+
+    this.router.post(
+      "/push-token",
+      this.authController.registerPushToken.bind(this.authController),
+    );
   }
 
   getRouter() {
