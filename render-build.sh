@@ -2,6 +2,7 @@
 set -e
 
 echo "==> Installing system dependencies for canvas and mupdf..."
+mkdir -p /var/lib/apt/lists/partial
 apt-get update -qq
 apt-get install -y -qq \
   build-essential \
