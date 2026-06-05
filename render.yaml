@@ -1,11 +1,10 @@
 services:
   - type: web
     name: flashy-api
-    env: node
+    env: docker
     region: oregon
     plan: free
-    buildCommand: bash render-build.sh
-    startCommand: node index.js
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: NODE_ENV
         value: production

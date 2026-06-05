@@ -1,0 +1,12 @@
+node_modules
+.git
+.gitignore
+.env
+.env.*
+coverage
+tests
+*.test.js
+render.yaml
+render-build.sh
+Dockerfile
+.dockerignore
