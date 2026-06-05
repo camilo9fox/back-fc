@@ -5,17 +5,27 @@ const config = {
   port: process.env.PORT || 5000,
   corsOptions: {
     origin: (origin, callback) => {
-      const allowed = [
-        process.env.FRONTEND_URL,
-        "capacitor://localhost",
-        "http://localhost",
-        "ionic://localhost",
-      ].filter(Boolean);
-      if (!origin || allowed.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+      // Allow requests with no origin (server-to-server, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      // Allow any local/native origin (Capacitor WebView, dev server, PWA)
+      if (
+        origin.startsWith("capacitor://") ||
+        origin.startsWith("ionic://") ||
+        origin.startsWith("http://localhost") ||
+        origin.startsWith("https://localhost") ||
+        origin.startsWith("file://")
+      ) {
+        return callback(null, true);
       }
+
+      // Allow the configured frontend URL
+      const frontendUrl = process.env.FRONTEND_URL;
+      if (frontendUrl && origin === frontendUrl) {
+        return callback(null, true);
+      }
+
+      callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   },
