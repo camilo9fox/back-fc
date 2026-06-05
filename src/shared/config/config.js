@@ -4,7 +4,19 @@
 const config = {
   port: process.env.PORT || 5000,
   corsOptions: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: (origin, callback) => {
+      const allowed = [
+        process.env.FRONTEND_URL,
+        "capacitor://localhost",
+        "http://localhost",
+        "ionic://localhost",
+      ].filter(Boolean);
+      if (!origin || allowed.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   },
   limits: {
