@@ -46,7 +46,9 @@ REGLAS OBLIGATORIAS:
 7. Mantén variedad entre preguntas.
 8. No agregues explicaciones fuera del JSON.
 9. NO preguntes sobre metadatos editoriales: autor, traductor, ISBN, editorial, ano de edicion, portada, prologo, prefacio, dedicatoria, agradecimientos, titulo del libro.
-10. Las preguntas deben evaluar comprension del contenido conceptual del material (ideas, teorias, procesos, relaciones, argumentos, evidencia, aplicaciones).`,
+10. Las preguntas deben evaluar comprension del contenido conceptual del material (ideas, teorias, procesos, relaciones, argumentos, evidencia, aplicaciones).
+11. Varía las respuestas entre preguntas: no repitas la misma respuesta para diferentes preguntas.
+12. Si el material proporcionado es breve, genera SOLO preguntas sobre lo que el texto menciona explicitamente. No inventes conceptos que no aparezcan.`,
       },
       {
         role: "user",
@@ -127,9 +129,9 @@ REGLAS OBLIGATORIAS:
           ),
           preferredModel: this.groqService.fastModel,
           fallbackModel: this.groqService.fastModel,
-          temperature: attempt === 1 ? 0.55 : 0.7,
+          temperature: attempt === 1 ? 0.7 : 0.75,
           max_completion_tokens: 2200,
-          frequency_penalty: 0.4,
+          frequency_penalty: 0.5,
           presence_penalty: 0.25,
           responseFormat: { type: "json_object" },
           stream: false,
@@ -162,6 +164,19 @@ REGLAS OBLIGATORIAS:
         ) {
           logger.debug(
             `FlashcardGenerationService: descartada pregunta similar a existente: "${flashcard.question}"`,
+          );
+          continue;
+        }
+
+        const duplicateAnswer = collected.some(
+          (q) =>
+            flashcard.answer.toLowerCase().trim() ===
+              q.answer.toLowerCase().trim() &&
+            TextDeduplication.isSimilar(flashcard.question, q.question, 85),
+        );
+        if (duplicateAnswer) {
+          logger.debug(
+            `FlashcardGenerationService: descartada respuesta duplicada: "${flashcard.answer}"`,
           );
           continue;
         }

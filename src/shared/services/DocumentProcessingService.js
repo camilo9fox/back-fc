@@ -24,7 +24,7 @@ class DocumentProcessingService {
       /^\s*(?:pr[oó]logo|prefacio|dedicatoria|agradecimientos)\s*$/i,
       /^\s*p[aá]gina\s+\d+\s*$/i,
     ];
-    this.CONTEXT_CACHE_TTL_MS = 30 * 60 * 1000;
+    this.CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000;
     this.CONTEXT_CACHE_MAX_ENTRIES = 24;
     this.contextCache = new Map();
   }
@@ -528,8 +528,13 @@ class DocumentProcessingService {
         normalized,
         maxLength,
       );
-      this.setCachedContext(cacheKey, shortContext);
-      return shortContext;
+      // For very short texts (<100 chars), prefix a warning to prevent hallucination
+      const finalContext =
+        normalized.length <= 100
+          ? `[Material breve. Basate solo en este texto, sin inventar.]\n\n${shortContext}`
+          : shortContext;
+      this.setCachedContext(cacheKey, finalContext);
+      return finalContext;
     }
 
     const scaleFactor = Math.min(4, Math.max(1, maxLength / 4500));

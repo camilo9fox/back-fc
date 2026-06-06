@@ -119,7 +119,8 @@ REGLAS OBLIGATORIAS:
 7. Basa las afirmaciones solo en el contenido del material proporcionado.
 8. Evita afirmaciones triviales u obviamente verdaderas/falsas sin contexto.
 9. No inventes informacion que no se deduzca claramente del material.
-10. Escribe en espanol neutro. No agregues nada fuera del JSON.`,
+10. Escribe en espanol neutro. No agregues nada fuera del JSON.
+11. Si el material proporcionado es breve, genera SOLO afirmaciones sobre lo que el texto menciona explicitamente. No inventes conceptos que no aparezcan.`,
       },
       {
         role: "user",
@@ -200,9 +201,9 @@ REGLAS OBLIGATORIAS:
           ),
           preferredModel: this.groqService.fastModel,
           fallbackModel: this.groqService.fastModel,
-          temperature: attempt === 1 ? 0.55 : 0.7,
+          temperature: attempt === 1 ? 0.7 : 0.75,
           max_completion_tokens: 2200,
-          frequency_penalty: 0.3,
+          frequency_penalty: 0.5,
           responseFormat: { type: "json_object" },
           stream: false,
         });

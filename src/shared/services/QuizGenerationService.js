@@ -137,7 +137,9 @@ ${explanationRules}
 7. No inventes informacion que no se deduzca claramente del material.
 8. Evita preguntas triviales, repetidas o ambiguas.
 9. No preguntes sobre metadatos: autor, ISBN, editorial, ano de edicion, portada.
-10. Escribe en espanol neutro. No agregues nada fuera del JSON.`,
+10. Escribe en espanol neutro. No agregues nada fuera del JSON.
+11. Varía las opciones incorrectas entre preguntas: no repitas los mismos distractores en diferentes preguntas.
+12. Si el material proporcionado es breve, genera SOLO preguntas sobre lo que el texto menciona explicitamente. No inventes escuelas, autores, doctrinas ni conceptos que no aparezcan en el material.`,
       },
       {
         role: "user",
@@ -225,7 +227,7 @@ ${explanationRules}
         fallbackModel: this.groqService.fastModel,
         temperature,
         max_completion_tokens: 2200,
-        frequency_penalty: 0.3,
+        frequency_penalty: 0.5,
         responseFormat: { type: "json_object" },
         stream: false,
       });
@@ -255,6 +257,27 @@ ${explanationRules}
         const key = normalizeQuestion(item.question);
         if (!key) continue;
         if (seenQuestions.has(key)) continue;
+
+        const answerText = normalizeQuestion(
+          String(item.correct_answer || ""),
+        );
+        const duplicateAnswer = collected.some((q) => {
+          const existingAnswer = normalizeQuestion(
+            String(q.correct_answer || ""),
+          );
+          return (
+            answerText &&
+            existingAnswer &&
+            answerText === existingAnswer &&
+            TextDeduplication.isSimilar(item.question, q.question, 85)
+          );
+        });
+        if (duplicateAnswer) {
+          logger.debug(
+            `QuizGenerationService: descartada pregunta con respuesta duplicada: "${item.question}"`,
+          );
+          continue;
+        }
 
         if (useSemanticDedup) {
           const existingThreshold = quantity >= 8 ? 95 : 92;
@@ -305,7 +328,7 @@ ${explanationRules}
         const batch = await requestBatch(
           requestQty,
           excluded,
-          attempt === 1 ? 0.55 : 0.65,
+          attempt === 1 ? 0.7 : 0.75,
         );
         addBatch(batch, true);
       } catch (err) {

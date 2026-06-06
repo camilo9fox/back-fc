@@ -245,7 +245,9 @@ REGLAS OBLIGATORIAS:
       4. reference_answer debe ser completa y util para correccion (6-10 lineas), respondiendo TODAS las partes de la consigna.
       5. evaluation_criteria debe ser verificable y explicita, iniciando con "Debe incluir:" y listando 3-6 criterios observables.
 6. max_points entre 5 y 20.
-7. Espanol neutro, sin markdown ni texto extra.`,
+7. Espanol neutro, sin markdown ni texto extra.
+8. Varía los prompts y reference_answers entre preguntas: no repitas la misma estructura ni los mismos conceptos.
+9. Si el material es breve, genera SOLO preguntas sobre lo que el texto menciona explicitamente. No inventes temas.`,
         },
         {
           role: "user",
@@ -254,8 +256,9 @@ REGLAS OBLIGATORIAS:
       ],
       preferredModel: this.groqService.fastModel,
       fallbackModel: this.groqService.fastModel,
-      temperature: 0.5,
+      temperature: 0.7,
       max_completion_tokens: 2200,
+      frequency_penalty: 0.5,
       responseFormat: { type: "json_object" },
       stream: false,
     });

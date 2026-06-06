@@ -99,7 +99,8 @@ REGLAS OBLIGATORIAS:
    - Frases claras, precisas y naturales.
    - Evita frases vacias y repeticiones literales entre secciones.
    - Mantén coherencia terminologica.
-11. LONGITUD GLOBAL OBJETIVO: entre ${targetWordsMin} y ${targetWordsMax} palabras.`,
+11. LONGITUD GLOBAL OBJETIVO: entre ${targetWordsMin} y ${targetWordsMax} palabras.
+12. Si el material proporcionado es breve, genera una guia basada ESTRICTAMENTE en el texto, sin inventar temas, autores ni conceptos que no aparezcan.`,
       },
       {
         role: "user",
@@ -189,7 +190,7 @@ ${window}`,
         preferredModel: this.groqService.qualityModel,
         fallbackModel: this.groqService.fastModel,
         max_completion_tokens: section.tokens,
-        temperature: 0.3,
+        temperature: 0.4,
       });
 
       const sectionText = response.choices?.[0]?.message?.content?.trim();
@@ -249,7 +250,7 @@ OBJETIVOS:
           1100,
           Math.max(500, Math.floor((scale.maxCompletionTokens || 2400) * 0.4)),
         ),
-        temperature: 0.2,
+        temperature: 0.3,
       });
 
       const refined = response.choices?.[0]?.message?.content?.trim();
@@ -336,7 +337,7 @@ OBJETIVOS:
             500,
             Math.min(attempt.outputTokens, scaled.maxCompletionTokens || 1200),
           ),
-          temperature: 0.4,
+          temperature: 0.45,
         });
 
         const text = response.choices?.[0]?.message?.content?.trim();
