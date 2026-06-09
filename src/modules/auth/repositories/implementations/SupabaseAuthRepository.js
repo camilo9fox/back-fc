@@ -32,7 +32,7 @@ class SupabaseAuthRepository {
         email,
         password,
         // In production, require email verification; skip it in other environments.
-        email_confirm: true,
+        email_confirm: process.env.NODE_ENV !== "production",
         user_metadata: metadata,
       });
 
