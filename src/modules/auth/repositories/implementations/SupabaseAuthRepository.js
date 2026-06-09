@@ -15,6 +15,12 @@ class SupabaseAuthRepository {
       config.supabase.serviceRoleKey,
     );
 
+    // Client for user-facing auth (needed for signUp to trigger confirmation emails)
+    this.supabaseAnonClient = createClient(
+      config.supabase.url,
+      config.supabase.anonKey,
+    );
+
     // Client for user-facing operations (when we need to act as the user)
     this.supabaseUserClient = null;
   }
@@ -28,11 +34,38 @@ class SupabaseAuthRepository {
    */
   async signUp(email, password, metadata = {}) {
     try {
+      const isProduction = process.env.NODE_ENV === "production";
+
+      if (isProduction) {
+        // Production: use public signUp() so Supabase sends verification email
+        const { data, error } = await this.supabaseAnonClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: metadata,
+          },
+        });
+
+        if (error) {
+          logger.error("Supabase signUp error:", error);
+          throw new Error(`Error creating user: ${error.message}`);
+        }
+
+        return {
+          user: {
+            id: data.user.id,
+            email: data.user.email,
+            created_at: data.user.created_at,
+            metadata: data.user.user_metadata,
+          },
+        };
+      }
+
+      // Development: use admin.createUser with auto-confirm
       const { data, error } = await this.supabase.auth.admin.createUser({
         email,
         password,
-        // In production, require email verification; skip it in other environments.
-        email_confirm: process.env.NODE_ENV !== "production",
+        email_confirm: true,
         user_metadata: metadata,
       });
 
