@@ -109,6 +109,13 @@ class AuthService {
   }
 
   /**
+   * Resends the email verification link.
+   */
+  async resendVerification(email) {
+    await this.authRepository.resendVerification(email);
+  }
+
+  /**
    * Signs in a user with email and password
    * @param {string} email - User email
    * @param {string} password - User password

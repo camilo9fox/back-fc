@@ -30,6 +30,14 @@ class AuthController {
 
       const result = await this.authService.signUp(email, password, metadata);
 
+      // In production, user must verify email before signing in
+      if (process.env.NODE_ENV === "production") {
+        return res.status(201).json({
+          requiresVerification: true,
+          email: result.user.email,
+        });
+      }
+
       // Set refresh token in httpOnly cookie (not accessible from JS)
       res.cookie("refreshToken", result.refreshToken, config.cookie);
       // Set access token in httpOnly cookie for XSS protection
@@ -107,6 +115,24 @@ class AuthController {
           .json({ error: "Please confirm your email before signing in" });
       }
       res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  /**
+   * Resends verification email
+   * POST /auth/resend-verification
+   */
+  async resendVerification(req, res) {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+      await this.authService.resendVerification(email);
+      res.json({ message: "Verification email resent" });
+    } catch (error) {
+      logger.error("AuthController.resendVerification error:", error);
+      res.status(500).json({ error: "Failed to resend verification email" });
     }
   }
 

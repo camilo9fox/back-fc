@@ -89,6 +89,18 @@ class SupabaseAuthRepository {
   }
 
   /**
+   * Resends the email verification link.
+   * @param {string} email - User email
+   */
+  async resendVerification(email) {
+    const { error } = await this.supabaseAnonClient.auth.resend({
+      type: "signup",
+      email,
+    });
+    if (error) throw new Error(`Error resending verification: ${error.message}`);
+  }
+
+  /**
    * Signs in a user with email and password
    * @param {string} email - User email
    * @param {string} password - User password

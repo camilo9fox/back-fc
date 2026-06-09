@@ -49,6 +49,11 @@ class AuthRoutes {
       this.authController.resetPassword.bind(this.authController),
     );
 
+    this.router.post(
+      "/resend-verification",
+      this.authController.resendVerification.bind(this.authController),
+    );
+
     // Protected routes (authentication required)
     this.router.use(authMiddleware);
     this.router.use(perUserApiLimiter);
