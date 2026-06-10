@@ -15,7 +15,7 @@ services:
       - key: JWT_REFRESH_SECRET
         sync: false
       - key: JWT_EXPIRES_IN
-        value: 7d
+        value: 4h
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
