@@ -22,6 +22,7 @@ const { createClient } = require("@supabase/supabase-js");
  */
 function createApp() {
   const app = express();
+  app.set("trust proxy", 1);
   const container = Container.create(config);
 
   const flashCardRoutes = container.get("flashCardRoutes");
