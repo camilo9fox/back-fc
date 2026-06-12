@@ -32,11 +32,6 @@ const CONTEMPT_TERMS = [
   /\blacra\b/i,
   /\bplaga\b/i,
   /\bdegenerad[oa]s?\b/i,
-  /\bantinatural(?:es)?\b/i,
-  /\baberraci[oó]n(?:es)?\b/i,
-  /\babominaci[oó]n(?:es)?\b/i,
-  /\benferm[oa]s?\s+(?:mental(?:es)?)?\b/i,
-  /\bc[aá]ncer(?:es)?\b/i,
   /\bson\s+una\s+(?:desgracia|verg[uü]enza|peste)\b/i,
   /\bdeber[ií]an\s+(?:morir|desaparecer|extinguirse)\b/i,
   /\bno\s+(?:merecen|deber[ií]an)\s+(?:vivir|existir)\b/i,
@@ -55,10 +50,8 @@ const PROTECTED_GROUPS = [
   /\bjud[ií]os?\b/i,
   /\bmusulman(?:es)?\b/i,
   /\binmigrantes?\b/i,
-  /\bmujeres?\b/i,
   /\bind[ií]genas?\b/i,
   /\bdiscapacitad[oa]s?\b/i,
-  /\bpobres?\b/i,
   /\bcristianos?\b/i,
   /\bbisexual(?:es)?\b/i,
   /\bpansexual(?:es)?\b/i,
@@ -68,8 +61,6 @@ const PROTECTED_GROUPS = [
   /\b[aá]rabes?\b/i,
   /\bchin[oa]s?\b/i,
   /\bgitan[oa]s?\b/i,
-  /\bancian[oa]s?\b/i,
-  /\bviej[oa]s?\b/i,
   /\brefugiad[oa]s?\b/i,
   /\bdesplazad[oa]s?\b/i,
 ];
@@ -84,7 +75,7 @@ const PATTERNS = {
       /\bpinche\b/i,
       /\bmierda\b/i,
       /\bjoder\b/i,
-      /\bcoj(?:er|ones|udo)\b/i,
+      /\bcojo(?:nes|nudo|nuda)\b/i,
       /\bverga\b/i,
       /\bhuev(?:[oó]n|ada)\b/i,
       /\bcul[eo]r[oa]?\b/i,
@@ -136,7 +127,7 @@ const PATTERNS = {
       /\bmor[oa]s?\s+(?:de\s+)?mierda\b/i,
       /\bt[ií]tere\s+(?:de\s+)?(?:los\s+)?(?:jud[ií]os|sionistas)\b/i,
       /\bconspiraci[oó]n\s+(?:jud[ií]a|sionista)\b/i,
-      /\b(?:tiraflechas|indio|comeperros?)\b/i,
+      /\b(?:tiraflechas|comeperros?)\b/i,
     ],
   },
 
@@ -175,6 +166,8 @@ const PATTERNS = {
 
   self_harm: {
     severity: 4,
+    contextual: true,
+    contextExclusion: /\b(?:psicolog|psiquiatr|clinic|tratamiento|terap|paciente|diagnostic|medic|hospital|prevenci[oó]n|intervenci[oó]n|salud\s+mental)\b/i,
     patterns: [
       /\bsuicid(?:io|a[rst]e?|arme)\b/i,
       /\bautolesi[oó]n\b/i,
@@ -260,6 +253,10 @@ function checkLocalPatterns(text, mode = "moderate") {
 
     for (const pattern of config.patterns) {
       if (pattern.test(normalized)) {
+        // Contextual exclusion for self_harm: allow in clinical/medical contexts
+        if (category === "self_harm" && config.contextExclusion && config.contextExclusion.test(normalized)) {
+          continue;
+        }
         flagged.push(category);
         break;
       }
