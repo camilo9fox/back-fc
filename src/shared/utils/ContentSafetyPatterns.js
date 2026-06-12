@@ -223,32 +223,27 @@ function normalizeText(text) {
  * group mention AND a contempt indicator in the same text.
  */
 function checkCompoundHateSpeech(text) {
-  // Quick global check: must have at least one protected group
-  if (!PROTECTED_GROUPS.some((p) => p.test(text))) return false;
-  // Must have at least one contempt term
-  if (!CONTEMPT_TERMS.some((p) => p.test(text))) return false;
-
   const words = text.split(/\s+/);
-  if (words.length < 2) return false;
+  if (words.length < 2) return 0;
 
   // Find positions of protected group mentions (check each word)
   const groupPositions = [];
   words.forEach((word, i) => {
     if (PROTECTED_GROUPS.some((p) => p.test(word))) groupPositions.push(i);
   });
-  if (groupPositions.length === 0) return false;
+  if (groupPositions.length === 0) return 0;
 
-  // For each group position, check a window of ±50 words for contempt terms.
-  // Test the window as a joined string so multi-word contempt patterns work.
+  // Count how many group positions have a contempt term within ±50 words
+  let count = 0;
   const WINDOW = 50;
   for (const pos of groupPositions) {
     const start = Math.max(0, pos - WINDOW);
     const end = Math.min(words.length, pos + WINDOW);
     const windowText = words.slice(start, end).join(" ");
-    if (CONTEMPT_TERMS.some((p) => p.test(windowText))) return true;
+    if (CONTEMPT_TERMS.some((p) => p.test(windowText))) count++;
   }
 
-  return false;
+  return count;
 }
 
 /**
@@ -266,8 +261,17 @@ function checkLocalPatterns(text, mode = "moderate") {
     if (config.severity < minSeverity) continue;
 
     if (config.compound) {
-      if (checkCompoundHateSpeech(normalized)) {
+      const matchCount = checkCompoundHateSpeech(normalized);
+      if (matchCount === 0) continue;
+
+      const docLen = normalized.length;
+      if (docLen < 5000) {
         flagged.push(category);
+      } else if (docLen < 50000 && matchCount >= 2) {
+        flagged.push(category);
+      } else if (docLen >= 50000) {
+        const density = matchCount / (docLen / 1000);
+        if (density > 0.1) flagged.push(category);
       }
       continue;
     }
