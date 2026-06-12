@@ -275,19 +275,33 @@ function checkLocalPatterns(text, mode = "moderate") {
     let matchCount = 0;
     for (const pattern of config.patterns) {
       if (pattern.test(normalized)) {
-        // Contextual exclusion for self_harm: allow in clinical/medical contexts
         if (category === "self_harm" && config.contextExclusion && config.contextExclusion.test(normalized)) {
           continue;
         }
         matchCount++;
       }
     }
+    if (matchCount === 0) continue;
 
-    // Density check: for long docs, profanity/self_harm need >= 2 distinct matches
-    const isLongDoc = normalized.length > 5000;
-    const needsDensity = category === "profanity" || category === "self_harm";
-    if (matchCount > 0 && (!isLongDoc || !needsDensity || matchCount >= 2)) {
+    // Always-block categories: 1 match blocks regardless of document size
+    const alwaysBlock = category === "sexual_minors" || category === "terrorism";
+    if (alwaysBlock) {
       flagged.push(category);
+      continue;
+    }
+
+    // Density threshold based on document length
+    const docLen = normalized.length;
+    if (docLen < 5000) {
+      // Short text (pasted snippet): 1 match blocks
+      flagged.push(category);
+    } else if (docLen < 50000) {
+      // Medium doc: need 2+ distinct matches
+      if (matchCount >= 2) flagged.push(category);
+    } else {
+      // Large doc (50K+ chars): need density ≥ 0.1 matches per 1000 chars
+      const density = matchCount / (docLen / 1000);
+      if (density > 0.1) flagged.push(category);
     }
   }
 
