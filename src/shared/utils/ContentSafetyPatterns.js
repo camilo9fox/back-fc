@@ -159,8 +159,8 @@ const PATTERNS = {
       /\bchild\s*porn/i,
       /\bpornograf[ií]a\s+infantil\b/i,
       /\babuso\s+(?:sexual\s+)?(?:infantil|de\s+menores)\b/i,
-      /\b(?:sexual|desnud[oa]|er[oó]tic[oa]|pornogr[aá]fic[oa])\b.*\b(?:menor|niñ[oa]|niñ[oa]s|infantil|adolescente|niñez|menores|beb[eé])\b/i,
-      /\b(?:menor|niñ[oa]|niñ[oa]s|infantil|adolescente|niñez|menores|beb[eé])\b.*\b(?:sexual|desnud[oa]|er[oó]tic[oa]|pornogr[aá]fic[oa])\b/i,
+      /\b(?:sexual|desnud[oa]|er[oó]tic[oa]|pornogr[aá]fic[oa])\b.{0,100}\b(?:menor|niñ[oa]|niñ[oa]s|infantil|adolescente|niñez|menores|beb[eé])\b/i,
+      /\b(?:menor|niñ[oa]|niñ[oa]s|infantil|adolescente|niñez|menores|beb[eé])\b.{0,100}\b(?:sexual|desnud[oa]|er[oó]tic[oa]|pornogr[aá]fic[oa])\b/i,
     ],
   },
 
