@@ -46,8 +46,8 @@ function createApp() {
   app.use(cookieParser());
   app.use(express.json({ limit: "10mb" }));
 
-  // Apply 30-second request timeout to all routes
-  app.use(requestTimeout(30_000));
+  // Apply 2-minute request timeout to all routes
+  app.use(requestTimeout(120_000));
 
   // Sanitize string fields in request bodies (strips control chars / NUL bytes)
   app.use(sanitizeBody);

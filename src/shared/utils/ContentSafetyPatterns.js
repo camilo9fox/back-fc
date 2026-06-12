@@ -223,11 +223,32 @@ function normalizeText(text) {
  * group mention AND a contempt indicator in the same text.
  */
 function checkCompoundHateSpeech(text) {
-  const hasGroup = PROTECTED_GROUPS.some((pattern) => pattern.test(text));
-  if (!hasGroup) return false;
+  // Quick global check: must have at least one protected group
+  if (!PROTECTED_GROUPS.some((p) => p.test(text))) return false;
+  // Must have at least one contempt term
+  if (!CONTEMPT_TERMS.some((p) => p.test(text))) return false;
 
-  const hasContempt = CONTEMPT_TERMS.some((pattern) => pattern.test(text));
-  return hasContempt;
+  const words = text.split(/\s+/);
+  if (words.length < 2) return false;
+
+  // Find positions of protected group mentions (check each word)
+  const groupPositions = [];
+  words.forEach((word, i) => {
+    if (PROTECTED_GROUPS.some((p) => p.test(word))) groupPositions.push(i);
+  });
+  if (groupPositions.length === 0) return false;
+
+  // For each group position, check a window of ±50 words for contempt terms.
+  // Test the window as a joined string so multi-word contempt patterns work.
+  const WINDOW = 50;
+  for (const pos of groupPositions) {
+    const start = Math.max(0, pos - WINDOW);
+    const end = Math.min(words.length, pos + WINDOW);
+    const windowText = words.slice(start, end).join(" ");
+    if (CONTEMPT_TERMS.some((p) => p.test(windowText))) return true;
+  }
+
+  return false;
 }
 
 /**
