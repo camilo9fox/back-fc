@@ -141,19 +141,19 @@ class ContentSafetyService {
     try {
       const safeText = String(text || "").slice(0, 6000);
 
-      const response = await this.groqService.createChatCompletion({
-        messages: [
-          {
-            role: "user",
-            content: safeText,
-          },
-        ],
-        preferredModel: SAFETY_GUARD_MODEL,
-        fallbackModel: SAFETY_GUARD_MODEL,
-        temperature: 0,
-        max_completion_tokens: 128,
-        stream: false,
-      });
+      const response = await Promise.race([
+        this.groqService.createChatCompletion({
+          messages: [{ role: "user", content: safeText }],
+          preferredModel: SAFETY_GUARD_MODEL,
+          fallbackModel: SAFETY_GUARD_MODEL,
+          temperature: 0,
+          max_completion_tokens: 128,
+          stream: false,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("guard timeout")), 5000),
+        ),
+      ]);
 
       const rawContent = response.choices?.[0]?.message?.content || "";
       return this._parseGuardResponse(rawContent);
