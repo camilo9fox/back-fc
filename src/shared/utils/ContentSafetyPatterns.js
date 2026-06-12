@@ -251,15 +251,22 @@ function checkLocalPatterns(text, mode = "moderate") {
       continue;
     }
 
+    let matchCount = 0;
     for (const pattern of config.patterns) {
       if (pattern.test(normalized)) {
         // Contextual exclusion for self_harm: allow in clinical/medical contexts
         if (category === "self_harm" && config.contextExclusion && config.contextExclusion.test(normalized)) {
           continue;
         }
-        flagged.push(category);
-        break;
+        matchCount++;
       }
+    }
+
+    // Density check: for long docs, profanity/self_harm need >= 2 distinct matches
+    const isLongDoc = normalized.length > 5000;
+    const needsDensity = category === "profanity" || category === "self_harm";
+    if (matchCount > 0 && (!isLongDoc || !needsDensity || matchCount >= 2)) {
+      flagged.push(category);
     }
   }
 
