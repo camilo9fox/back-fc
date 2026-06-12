@@ -58,7 +58,7 @@ class ContentSafetyService {
     if (!localResult.safe) {
       const category = localResult.flagged[0];
       logger.warn(
-        `ContentSafetyService: bloqueado por filtro local (${category})`
+        `ContentSafetyService: bloqueado por filtro local (${category}). Texto: "${trimmed.slice(0, 100)}..."`
       );
       throw new ContentSafetyError(this._userMessage(category), category);
     }
@@ -66,6 +66,8 @@ class ContentSafetyService {
     if (this.localOnly) {
       return { safe: true };
     }
+
+    logger.info("ContentSafetyService: pasando a Llama Guard...");
 
     const guardResult = await this._classifyWithGuard(trimmed);
 
