@@ -241,22 +241,6 @@ CREATE TABLE IF NOT EXISTS flashcard_sets (
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Ensure FK constraints exist even if CREATE TABLE IF NOT EXISTS skipped them
--- First, clean orphaned rows that would violate the FKs
-DELETE FROM flashcards WHERE set_id IS NOT NULL AND set_id NOT IN (SELECT id FROM flashcard_sets);
-DELETE FROM flashcard_sets WHERE user_id NOT IN (SELECT id FROM auth.users);
-DELETE FROM flashcard_sets WHERE category_id NOT IN (SELECT id FROM categories);
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'flashcard_sets_user_id_fkey') THEN
-    ALTER TABLE flashcard_sets ADD CONSTRAINT flashcard_sets_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'flashcard_sets_category_id_fkey') THEN
-    ALTER TABLE flashcard_sets ADD CONSTRAINT flashcard_sets_category_id_fkey FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE;
-  END IF;
-END $$;
-
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_user_id     ON flashcard_sets(user_id);
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_category_id ON flashcard_sets(category_id);
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_created_at  ON flashcard_sets(created_at DESC);
@@ -311,6 +295,30 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_flashcards_set') THEN
     ALTER TABLE flashcards ADD CONSTRAINT fk_flashcards_set
       FOREIGN KEY (set_id) REFERENCES flashcard_sets(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- Clean orphaned rows that would violate the FK constraints above
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'flashcards' AND table_schema = 'public') THEN
+    EXECUTE 'DELETE FROM flashcards WHERE set_id IS NOT NULL AND set_id NOT IN (SELECT id FROM flashcard_sets)';
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'flashcard_sets' AND table_schema = 'public') THEN
+    EXECUTE 'DELETE FROM flashcard_sets WHERE user_id NOT IN (SELECT id FROM auth.users)';
+    EXECUTE 'DELETE FROM flashcard_sets WHERE category_id NOT IN (SELECT id FROM categories)';
+  END IF;
+END $$;
+
+-- Ensure FK constraints exist (after cleanup so no orphaned data blocks them)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'flashcard_sets_user_id_fkey') THEN
+    ALTER TABLE flashcard_sets ADD CONSTRAINT flashcard_sets_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'flashcard_sets_category_id_fkey') THEN
+    ALTER TABLE flashcard_sets ADD CONSTRAINT flashcard_sets_category_id_fkey FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE;
   END IF;
 END $$;
 
