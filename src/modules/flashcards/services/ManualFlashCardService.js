@@ -23,7 +23,7 @@ class ManualFlashCardService {
    * @param {string} categoryId - Category ID (optional, will use default "General" if not provided)
    * @returns {Promise<Object>} Created flashcard data with ID and timestamps
    */
-  async createFlashCard({ question, answer, title, setId }, userId, categoryId = null) {
+  async createFlashCard({ question, answer, title, setId, source }, userId, categoryId = null) {
     if (!userId) {
       throw new ValidationError("User ID is required to create flashcard");
     }
@@ -66,7 +66,7 @@ class ManualFlashCardService {
       categoryId: finalCategoryId,
       title: title.trim(),
       description: null,
-      cards: [{ ...validatedCard, source: "manual" }],
+      cards: [{ ...validatedCard, source: source || "manual" }],
     });
   }
 
@@ -114,7 +114,7 @@ class ManualFlashCardService {
         if (this.contentSafetyService) {
           await this.contentSafetyService.checkLocalOnly(`${card.question} ${card.answer}`);
         }
-        cards.push({ ...card, source: "manual" });
+        cards.push({ ...card, source: flashCardsData[i].source || "manual" });
       } catch (error) {
         throw new ValidationError(`Error en la flashcard ${i + 1}: ${error.message}`);
       }

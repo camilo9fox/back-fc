@@ -154,7 +154,7 @@ describe("ManualFlashCardService.createFlashCards()", () => {
     );
     expect(flashCardRepository.createSet).toHaveBeenCalledWith(
       expect.objectContaining({
-        cards: expect.arrayContaining([expect.objectContaining({ source: "manual" })]),
+        cards: expect.arrayContaining([expect.objectContaining({ source: "ai" })]),
       }),
     );
   });
