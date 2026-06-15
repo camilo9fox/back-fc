@@ -218,7 +218,7 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { question, answer, categoryId, setId } = req.body;
+      const { question, answer, categoryId, title } = req.body;
 
       if (!question || !answer) {
         return res.status(400).json({
@@ -241,7 +241,7 @@ class FlashCardController {
       }
 
       const flashCard = await this.manualFlashCardService.createFlashCard(
-        { question, answer, setId },
+        { question, answer, title },
         userId,
         categoryId,
       );
@@ -264,7 +264,7 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { flashcards, categoryId } = req.body;
+      const { flashcards, categoryId, title } = req.body;
 
       if (!flashcards || !Array.isArray(flashcards)) {
         return res.status(400).json({
@@ -273,17 +273,14 @@ class FlashCardController {
         });
       }
 
-      const createdFlashCards =
-        await this.manualFlashCardService.createFlashCards(
+      const set = await this.manualFlashCardService.createFlashCards(
           flashcards,
           userId,
           categoryId,
+          title,
         );
 
-      res.status(201).json({
-        message: `${createdFlashCards.length} flashcards creadas exitosamente`,
-        flashcards: createdFlashCards,
-      });
+      res.status(201).json(set);
     } catch (error) {
       this._handleError(error, res);
     }

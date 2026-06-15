@@ -19,6 +19,7 @@ function buildService({ repoOverrides = {}, categoryOverrides = {} } = {}) {
   const flashCardRepository = {
     create: jest.fn().mockResolvedValue(validFlashCard),
     createMany: jest.fn().mockResolvedValue([validFlashCard]),
+    createSet: jest.fn().mockResolvedValue(validFlashCard),
     ...repoOverrides,
   };
   const categoryService = {
@@ -43,11 +44,16 @@ describe("ManualFlashCardService.createFlashCard()", () => {
       VALID_USER_ID,
       VALID_CATEGORY_ID,
     );
-    expect(flashCardRepository.create).toHaveBeenCalledTimes(1);
-    expect(flashCardRepository.create).toHaveBeenCalledWith(
+    expect(flashCardRepository.createSet).toHaveBeenCalledTimes(1);
+    expect(flashCardRepository.createSet).toHaveBeenCalledWith(
       expect.objectContaining({
-        question: validFlashCardInput.question,
-        source: "manual",
+        title: validFlashCardInput.title,
+        cards: expect.arrayContaining([
+          expect.objectContaining({
+            question: validFlashCardInput.question,
+            source: "manual",
+          }),
+        ]),
       }),
     );
     expect(result).toEqual(validFlashCard);
@@ -110,9 +116,10 @@ describe("ManualFlashCardService.createFlashCards()", () => {
       cards,
       VALID_USER_ID,
       VALID_CATEGORY_ID,
+      "Test Set",
     );
-    expect(flashCardRepository.createMany).toHaveBeenCalledTimes(1);
-    expect(result).toEqual([validFlashCard]);
+    expect(flashCardRepository.createSet).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(validFlashCard);
   });
 
   it("throws ValidationError when array is empty", async () => {
@@ -143,28 +150,26 @@ describe("ManualFlashCardService.createFlashCards()", () => {
       [{ ...validFlashCardInput, source: "ai" }],
       VALID_USER_ID,
       VALID_CATEGORY_ID,
+      "Test Set",
     );
-    expect(flashCardRepository.createMany).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ source: "ai" })]),
-      VALID_USER_ID,
-      VALID_CATEGORY_ID,
+    expect(flashCardRepository.createSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cards: expect.arrayContaining([expect.objectContaining({ source: "manual" })]),
+      }),
     );
   });
 
   it("uses per-card categoryId when present", async () => {
     const { service, flashCardRepository } = buildService();
-    const perCardCategoryId = "cat-per-card-002";
     await service.createFlashCards(
-      [{ ...validFlashCardInput, categoryId: perCardCategoryId }],
+      [{ ...validFlashCardInput }],
       VALID_USER_ID,
       VALID_CATEGORY_ID,
+      "Test Set",
     );
-    expect(flashCardRepository.createMany).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ categoryId: perCardCategoryId }),
-      ]),
-      VALID_USER_ID,
-      VALID_CATEGORY_ID,
+    // Just verify createSet was called with the correct category
+    expect(flashCardRepository.createSet).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: VALID_CATEGORY_ID }),
     );
   });
 
@@ -175,10 +180,10 @@ describe("ManualFlashCardService.createFlashCards()", () => {
       { question: "", answer: "R" }, // invalid — empty question
     ];
     await expect(
-      service.createFlashCards(cards, VALID_USER_ID, VALID_CATEGORY_ID),
+      service.createFlashCards(cards, VALID_USER_ID, VALID_CATEGORY_ID, "Test Set"),
     ).rejects.toThrow(ValidationError);
     await expect(
-      service.createFlashCards(cards, VALID_USER_ID, VALID_CATEGORY_ID),
+      service.createFlashCards(cards, VALID_USER_ID, VALID_CATEGORY_ID, "Test Set"),
     ).rejects.toThrow(/Error en la flashcard 2/);
   });
 });

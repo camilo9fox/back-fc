@@ -175,19 +175,7 @@ CREATE POLICY "Users can delete their own categories" ON categories FOR DELETE U
 -- FLASHCARDS  (classic Q/A — no options)
 -- category_id is required (NOT NULL)
 -- ────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS flashcards (
-  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-  set_id      UUID REFERENCES flashcard_sets(id) ON DELETE SET NULL,
-  question    TEXT NOT NULL,
-  answer      TEXT NOT NULL,
-  source      TEXT NOT NULL CHECK (source IN ('ai', 'manual')),
-  is_public   BOOLEAN NOT NULL DEFAULT false,
-  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
+-- Flashcard sets (parent — must be created BEFORE flashcards for FK)
 CREATE TABLE IF NOT EXISTS flashcard_sets (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -202,6 +190,35 @@ CREATE TABLE IF NOT EXISTS flashcard_sets (
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_user_id     ON flashcard_sets(user_id);
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_category_id ON flashcard_sets(category_id);
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_created_at  ON flashcard_sets(created_at DESC);
+
+ALTER TABLE flashcard_sets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Read own or public flashcard sets"        ON flashcard_sets FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+CREATE POLICY "Users can insert their own flashcard sets" ON flashcard_sets FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own flashcard sets" ON flashcard_sets FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own flashcard sets" ON flashcard_sets FOR DELETE USING (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS flashcards (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  set_id      UUID,
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  source      TEXT NOT NULL CHECK (source IN ('ai', 'manual')),
+  is_public   BOOLEAN NOT NULL DEFAULT false,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- FK added after both tables exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_flashcards_set') THEN
+    ALTER TABLE flashcards ADD CONSTRAINT fk_flashcards_set
+      FOREIGN KEY (set_id) REFERENCES flashcard_sets(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_flashcards_user_id      ON flashcards(user_id);
 CREATE INDEX IF NOT EXISTS idx_flashcards_category_id  ON flashcards(category_id);
@@ -221,13 +238,6 @@ CREATE POLICY "Read own or public flashcards"        ON flashcards FOR SELECT US
 CREATE POLICY "Users can insert their own flashcards" ON flashcards FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own flashcards" ON flashcards FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own flashcards" ON flashcards FOR DELETE USING (auth.uid() = user_id);
-
-ALTER TABLE flashcard_sets ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Read own or public flashcard sets"        ON flashcard_sets FOR SELECT USING (auth.uid() = user_id OR is_public = true);
-CREATE POLICY "Users can insert their own flashcard sets" ON flashcard_sets FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own flashcard sets" ON flashcard_sets FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own flashcard sets" ON flashcard_sets FOR DELETE USING (auth.uid() = user_id);
 
 -- ────────────────────────────────────────────
 -- QUIZZES  (cuestionarios de alternativas)

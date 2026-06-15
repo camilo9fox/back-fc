@@ -23,7 +23,7 @@ class ManualFlashCardService {
    * @param {string} categoryId - Category ID (optional, will use default "General" if not provided)
    * @returns {Promise<Object>} Created flashcard data with ID and timestamps
    */
-  async createFlashCard({ question, answer, setId }, userId, categoryId = null) {
+  async createFlashCard({ question, answer, title, setId }, userId, categoryId = null) {
     if (!userId) {
       throw new ValidationError("User ID is required to create flashcard");
     }
@@ -32,36 +32,42 @@ class ManualFlashCardService {
       await this.contentSafetyService.checkLocalOnly(`${question} ${answer}`);
     }
 
+    if (!title?.trim() && !setId) {
+      throw new ValidationError("Se requiere un título para crear un set de flashcards.");
+    }
+
     // If no categoryId provided, get the default "General" category
     let finalCategoryId = categoryId;
     if (!finalCategoryId) {
       try {
-        const defaultCategory =
-          await this.categoryService.getDefaultCategory(userId);
+        const defaultCategory = await this.categoryService.getDefaultCategory(userId);
         finalCategoryId = defaultCategory.id;
       } catch (error) {
-        throw new ValidationError(
-          "Se requiere una categoría para crear la flashcard.",
-        );
+        throw new ValidationError("Se requiere una categoría para crear la flashcard.");
       }
     }
 
-    // Validate the flashcard data
-    const validatedFlashCard = this._validateFlashCardData({
-      question,
-      answer,
-    });
+    const validatedCard = this._validateFlashCardData({ question, answer });
 
-    // Save to database
-    const savedFlashCard = await this.flashCardRepository.create({
-      ...validatedFlashCard,
-      source: "manual",
+    // If setId provided, add to existing set
+    if (setId) {
+      return this.flashCardRepository.create({
+        ...validatedCard,
+        source: "manual",
+        userId,
+        categoryId: finalCategoryId,
+        setId,
+      });
+    }
+
+    // Otherwise, create a new set with this single card
+    return this.flashCardRepository.createSet({
       userId,
       categoryId: finalCategoryId,
-      setId: setId || null,
+      title: title.trim(),
+      description: null,
+      cards: [{ ...validatedCard, source: "manual" }],
     });
-
-    return savedFlashCard;
   }
 
   /**
@@ -71,7 +77,7 @@ class ManualFlashCardService {
    * @param {string} categoryId - Category ID (optional)
    * @returns {Promise<Array<Object>>} Array of created flashcard data with IDs and timestamps
    */
-  async createFlashCards(flashCardsData, userId, categoryId = null) {
+  async createFlashCards(flashCardsData, userId, categoryId = null, title = null) {
     if (!userId) {
       throw new ValidationError("User ID is required to create flashcards");
     }
@@ -86,39 +92,41 @@ class ManualFlashCardService {
       );
     }
 
-    const validatedFlashCards = [];
+    if (!title?.trim()) {
+      throw new ValidationError("Se requiere un título para crear un set de flashcards.");
+    }
 
-    // Validate all flashcards first
-    for (let i = 0; i < flashCardsData.length; i++) {
+    // If no categoryId provided, get the default "General" category
+    let finalCategoryId = categoryId;
+    if (!finalCategoryId) {
       try {
-        const validatedCard = this._validateFlashCardData(flashCardsData[i]);
-        if (this.contentSafetyService) {
-          const text = `${validatedCard.question} ${validatedCard.answer}`;
-          await this.contentSafetyService.checkLocalOnly(text);
-        }
-        const source = flashCardsData[i].source === "ai" ? "ai" : "manual";
-        const cardCategoryId = flashCardsData[i].categoryId || categoryId;
-        const setId = flashCardsData[i].setId || null;
-        validatedFlashCards.push({
-          ...validatedCard,
-          source,
-          categoryId: cardCategoryId,
-          setId,
-        });
+        const defaultCategory = await this.categoryService.getDefaultCategory(userId);
+        finalCategoryId = defaultCategory.id;
       } catch (error) {
-        throw new ValidationError(
-          `Error en la flashcard ${i + 1}: ${error.message}`,
-        );
+        throw new ValidationError("Se requiere una categoría para crear la flashcard.");
       }
     }
 
-    // Save all to database
-    const savedFlashCards = await this.flashCardRepository.createMany(
-      validatedFlashCards,
+    const cards = [];
+    for (let i = 0; i < flashCardsData.length; i++) {
+      try {
+        const card = this._validateFlashCardData(flashCardsData[i]);
+        if (this.contentSafetyService) {
+          await this.contentSafetyService.checkLocalOnly(`${card.question} ${card.answer}`);
+        }
+        cards.push({ ...card, source: "manual" });
+      } catch (error) {
+        throw new ValidationError(`Error en la flashcard ${i + 1}: ${error.message}`);
+      }
+    }
+
+    return this.flashCardRepository.createSet({
       userId,
-      categoryId,
-    );
-    return savedFlashCards;
+      categoryId: finalCategoryId,
+      title: title.trim(),
+      description: null,
+      cards,
+    });
   }
 
   /**

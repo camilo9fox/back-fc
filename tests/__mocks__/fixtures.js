@@ -21,6 +21,7 @@ const validFlashCard = {
 const validFlashCardInput = {
   question: "¿Qué es la fotosíntesis?",
   answer: "Proceso por el que las plantas producen glucosa usando luz solar.",
+  title: "Biología celular",
 };
 
 // ── Quiz fixtures ─────────────────────────────────────────────────────────────
