@@ -142,15 +142,47 @@ class SupabaseLibraryRepository extends ILibraryRepository {
 
       const newCatId = newCat.id;
 
-      // 3. Copy flashcards
+      // 3. Copy flashcards (preserving set structure)
       const { data: srcFlashcards } = await this.supabase
         .from("flashcards")
-        .select("question, answer")
+        .select("id, question, answer, source, set_id")
         .eq("category_id", sourceCategoryId)
         .eq("is_public", true);
 
       let flashcardCount = 0;
       if (srcFlashcards && srcFlashcards.length > 0) {
+        // Group flashcards by set_id: those with a set and those without
+        const setIds = [...new Set(
+          srcFlashcards.map((f) => f.set_id).filter(Boolean),
+        )];
+        const setMap = {};
+
+        // Create new sets for each existing set_id
+        if (setIds.length > 0) {
+          const { data: srcSets } = await this.supabase
+            .from("flashcard_sets")
+            .select("id, title, description")
+            .in("id", setIds);
+
+          for (const oldSet of srcSets || []) {
+            const { data: newSet } = await this.supabase
+              .from("flashcard_sets")
+              .insert([
+                {
+                  user_id: targetUserId,
+                  category_id: newCatId,
+                  title: oldSet.title,
+                  description: oldSet.description,
+                },
+              ])
+              .select("id")
+              .single();
+
+            if (newSet) setMap[oldSet.id] = newSet.id;
+          }
+        }
+
+        // Insert flashcards with new set_ids
         const { data: newFlash } = await this.supabase
           .from("flashcards")
           .insert(
@@ -159,7 +191,8 @@ class SupabaseLibraryRepository extends ILibraryRepository {
               category_id: newCatId,
               question: f.question,
               answer: f.answer,
-              source: "manual",
+              source: f.source || "manual",
+              set_id: f.set_id ? setMap[f.set_id] || null : null,
               is_public: false,
             })),
           )
@@ -295,7 +328,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       const [flashRes, quizRes, tfRes, sgRes] = await Promise.all([
         this.supabase
           .from("flashcards")
-          .select("id, question")
+          .select("id, question, answer, flashcard_sets(id,title)")
           .eq("category_id", categoryId)
           .eq("is_public", true)
           .order("created_at", { ascending: true })
@@ -329,6 +362,8 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         flashcards: (flashRes.data || []).map((f) => ({
           id: f.id,
           question: f.question,
+          answer: f.answer,
+          set: f.flashcard_sets ?? null,
         })),
         quizzes: (quizRes.data || []).map((q) => ({
           id: q.id,
