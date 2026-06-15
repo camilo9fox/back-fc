@@ -25,7 +25,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
     try {
       let query = this.supabase
         .from("categories")
-        .select("id, title, description, user_id, created_at, updated_at", {
+        .select("id, title, description, user_id, created_at", {
           count: "exact",
         })
         .eq("is_public", true)
@@ -88,18 +88,14 @@ class SupabaseLibraryRepository extends ILibraryRepository {
 
       // Check which public categories the user already imported
       const forkedIds = new Set();
-      const forkUpdated = {};
       if (userId && catIds.length > 0) {
         const { data: forked } = await this.supabase
           .from("categories")
-          .select("forked_from, updated_at")
+          .select("forked_from")
           .eq("user_id", userId)
           .in("forked_from", catIds);
         for (const f of forked || []) {
-          if (f.forked_from) {
-            forkedIds.add(f.forked_from);
-            forkUpdated[f.forked_from] = new Date(f.updated_at);
-          }
+          if (f.forked_from) forkedIds.add(f.forked_from);
         }
       }
 
@@ -110,13 +106,12 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           description: c.description,
           userId: c.user_id,
           createdAt: c.created_at,
-          updatedAt: c.updated_at,
           flashcardCount: flashCount[c.id] || 0,
           quizCount: quizCount[c.id] || 0,
           trueFalseCount: tfCount[c.id] || 0,
           studyGuideCount: studyGuideCount[c.id] || 0,
           alreadyImported: forkedIds.has(c.id),
-          hasUpdates: forkedIds.has(c.id) && forkUpdated[c.id] < new Date(c.updated_at),
+          hasUpdates: forkedIds.has(c.id),
         })),
         total: count ?? categories.length,
       };
@@ -133,7 +128,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       // 1. Verify source category is public
       const { data: srcCat, error: catErr } = await this.supabase
         .from("categories")
-        .select("id, title, description")
+        .select("id, title, description, user_id")
         .eq("id", sourceCategoryId)
         .eq("is_public", true)
         .single();
