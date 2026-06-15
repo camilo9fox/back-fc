@@ -103,8 +103,14 @@ CREATE TABLE IF NOT EXISTS tickets_categories (
 
 ALTER TABLE tickets_categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated users can read ticket categories"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can read ticket categories' AND tablename = 'tickets_categories') THEN
+    CREATE POLICY "Authenticated users can read ticket categories"
   ON tickets_categories FOR SELECT USING (auth.role() = 'authenticated');
+  END IF;
+END $$;
+
 
 INSERT INTO tickets_categories (name, description) VALUES
 ('Problema técnico', 'Errores, fallos o problemas de rendimiento en la aplicación.'),
@@ -138,10 +144,34 @@ CREATE TRIGGER update_support_tickets_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ALTER TABLE support_tickets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own support tickets"   ON support_tickets FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own support tickets" ON support_tickets FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own support tickets" ON support_tickets FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own support tickets" ON support_tickets FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own support tickets' AND tablename = 'support_tickets') THEN
+    CREATE POLICY "Users can read their own support tickets"   ON support_tickets FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own support tickets' AND tablename = 'support_tickets') THEN
+    CREATE POLICY "Users can insert their own support tickets" ON support_tickets FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own support tickets' AND tablename = 'support_tickets') THEN
+    CREATE POLICY "Users can update their own support tickets" ON support_tickets FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own support tickets' AND tablename = 'support_tickets') THEN
+    CREATE POLICY "Users can delete their own support tickets" ON support_tickets FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- CATEGORIES
@@ -166,10 +196,34 @@ CREATE TRIGGER update_categories_updated_at
 
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Read own or public categories"        ON categories FOR SELECT USING (auth.uid() = user_id OR is_public = true);
-CREATE POLICY "Users can insert their own categories" ON categories FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own categories" ON categories FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own categories" ON categories FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read own or public categories' AND tablename = 'categories') THEN
+    CREATE POLICY "Read own or public categories"        ON categories FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own categories' AND tablename = 'categories') THEN
+    CREATE POLICY "Users can insert their own categories" ON categories FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own categories' AND tablename = 'categories') THEN
+    CREATE POLICY "Users can update their own categories" ON categories FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own categories' AND tablename = 'categories') THEN
+    CREATE POLICY "Users can delete their own categories" ON categories FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- FLASHCARDS  (classic Q/A — no options)
@@ -193,10 +247,34 @@ CREATE INDEX IF NOT EXISTS idx_flashcard_sets_created_at  ON flashcard_sets(crea
 
 ALTER TABLE flashcard_sets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Read own or public flashcard sets"        ON flashcard_sets FOR SELECT USING (auth.uid() = user_id OR is_public = true);
-CREATE POLICY "Users can insert their own flashcard sets" ON flashcard_sets FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own flashcard sets" ON flashcard_sets FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own flashcard sets" ON flashcard_sets FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read own or public flashcard sets' AND tablename = 'flashcard_sets') THEN
+    CREATE POLICY "Read own or public flashcard sets"        ON flashcard_sets FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own flashcard sets' AND tablename = 'flashcard_sets') THEN
+    CREATE POLICY "Users can insert their own flashcard sets" ON flashcard_sets FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own flashcard sets' AND tablename = 'flashcard_sets') THEN
+    CREATE POLICY "Users can update their own flashcard sets" ON flashcard_sets FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own flashcard sets' AND tablename = 'flashcard_sets') THEN
+    CREATE POLICY "Users can delete their own flashcard sets" ON flashcard_sets FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS flashcards (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -234,10 +312,34 @@ CREATE TRIGGER update_flashcards_updated_at
 
 ALTER TABLE flashcards ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Read own or public flashcards"        ON flashcards FOR SELECT USING (auth.uid() = user_id OR is_public = true);
-CREATE POLICY "Users can insert their own flashcards" ON flashcards FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own flashcards" ON flashcards FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own flashcards" ON flashcards FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read own or public flashcards' AND tablename = 'flashcards') THEN
+    CREATE POLICY "Read own or public flashcards"        ON flashcards FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own flashcards' AND tablename = 'flashcards') THEN
+    CREATE POLICY "Users can insert their own flashcards" ON flashcards FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own flashcards' AND tablename = 'flashcards') THEN
+    CREATE POLICY "Users can update their own flashcards" ON flashcards FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own flashcards' AND tablename = 'flashcards') THEN
+    CREATE POLICY "Users can delete their own flashcards" ON flashcards FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- QUIZZES  (cuestionarios de alternativas)
@@ -264,10 +366,34 @@ CREATE TRIGGER update_quizzes_updated_at
 
 ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Read own or public quizzes"        ON quizzes FOR SELECT USING (auth.uid() = user_id OR is_public = true);
-CREATE POLICY "Users can insert their own quizzes" ON quizzes FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own quizzes" ON quizzes FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own quizzes" ON quizzes FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read own or public quizzes' AND tablename = 'quizzes') THEN
+    CREATE POLICY "Read own or public quizzes"        ON quizzes FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own quizzes' AND tablename = 'quizzes') THEN
+    CREATE POLICY "Users can insert their own quizzes" ON quizzes FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own quizzes' AND tablename = 'quizzes') THEN
+    CREATE POLICY "Users can update their own quizzes" ON quizzes FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own quizzes' AND tablename = 'quizzes') THEN
+    CREATE POLICY "Users can delete their own quizzes" ON quizzes FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- Quiz questions
 -- options: JSONB array of strings — all alternatives including the correct one
@@ -288,25 +414,49 @@ CREATE INDEX IF NOT EXISTS idx_quiz_questions_order   ON quiz_questions(quiz_id,
 ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
 
 -- Questions inherit access through their parent quiz (join-based check)
-CREATE POLICY "Read quiz questions of own or public quiz" ON quiz_questions
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read quiz questions of own or public quiz' AND tablename = 'quiz_questions') THEN
+    CREATE POLICY "Read quiz questions of own or public quiz" ON quiz_questions
     FOR SELECT USING (
       EXISTS (SELECT 1 FROM quizzes q WHERE q.id = quiz_id AND (q.user_id = auth.uid() OR q.is_public = true))
     );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can insert their quiz questions" ON quiz_questions
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their quiz questions' AND tablename = 'quiz_questions') THEN
+    CREATE POLICY "Users can insert their quiz questions" ON quiz_questions
     FOR INSERT WITH CHECK (
       EXISTS (SELECT 1 FROM quizzes q WHERE q.id = quiz_id AND q.user_id = auth.uid())
     );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can update their quiz questions" ON quiz_questions
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their quiz questions' AND tablename = 'quiz_questions') THEN
+    CREATE POLICY "Users can update their quiz questions" ON quiz_questions
     FOR UPDATE USING (
       EXISTS (SELECT 1 FROM quizzes q WHERE q.id = quiz_id AND q.user_id = auth.uid())
     );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can delete their quiz questions" ON quiz_questions
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their quiz questions' AND tablename = 'quiz_questions') THEN
+    CREATE POLICY "Users can delete their quiz questions" ON quiz_questions
     FOR DELETE USING (
       EXISTS (SELECT 1 FROM quizzes q WHERE q.id = quiz_id AND q.user_id = auth.uid())
     );
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- TRUE / FALSE SETS
@@ -333,10 +483,34 @@ CREATE TRIGGER update_true_false_sets_updated_at
 
 ALTER TABLE true_false_sets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Read own or public tf sets"        ON true_false_sets FOR SELECT USING (auth.uid() = user_id OR is_public = true);
-CREATE POLICY "Users can insert their own tf sets" ON true_false_sets FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own tf sets" ON true_false_sets FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own tf sets" ON true_false_sets FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read own or public tf sets' AND tablename = 'true_false_sets') THEN
+    CREATE POLICY "Read own or public tf sets"        ON true_false_sets FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own tf sets' AND tablename = 'true_false_sets') THEN
+    CREATE POLICY "Users can insert their own tf sets" ON true_false_sets FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own tf sets' AND tablename = 'true_false_sets') THEN
+    CREATE POLICY "Users can update their own tf sets" ON true_false_sets FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own tf sets' AND tablename = 'true_false_sets') THEN
+    CREATE POLICY "Users can delete their own tf sets" ON true_false_sets FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- True/False questions
 CREATE TABLE IF NOT EXISTS true_false_questions (
@@ -354,25 +528,49 @@ CREATE INDEX IF NOT EXISTS idx_tf_questions_order  ON true_false_questions(set_i
 
 ALTER TABLE true_false_questions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Read tf questions of own or public set" ON true_false_questions
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read tf questions of own or public set' AND tablename = 'true_false_questions') THEN
+    CREATE POLICY "Read tf questions of own or public set" ON true_false_questions
     FOR SELECT USING (
       EXISTS (SELECT 1 FROM true_false_sets s WHERE s.id = set_id AND (s.user_id = auth.uid() OR s.is_public = true))
     );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can insert their tf questions" ON true_false_questions
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their tf questions' AND tablename = 'true_false_questions') THEN
+    CREATE POLICY "Users can insert their tf questions" ON true_false_questions
     FOR INSERT WITH CHECK (
       EXISTS (SELECT 1 FROM true_false_sets s WHERE s.id = set_id AND s.user_id = auth.uid())
     );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can update their tf questions" ON true_false_questions
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their tf questions' AND tablename = 'true_false_questions') THEN
+    CREATE POLICY "Users can update their tf questions" ON true_false_questions
     FOR UPDATE USING (
       EXISTS (SELECT 1 FROM true_false_sets s WHERE s.id = set_id AND s.user_id = auth.uid())
     );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can delete their tf questions" ON true_false_questions
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their tf questions' AND tablename = 'true_false_questions') THEN
+    CREATE POLICY "Users can delete their tf questions" ON true_false_questions
     FOR DELETE USING (
       EXISTS (SELECT 1 FROM true_false_sets s WHERE s.id = set_id AND s.user_id = auth.uid())
     );
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- EXAM SIMULATIONS (Mixed V/F + Development)
@@ -406,14 +604,38 @@ DROP POLICY IF EXISTS "Users can insert their own exam simulations" ON exam_simu
 DROP POLICY IF EXISTS "Users can update their own exam simulations" ON exam_simulations;
 DROP POLICY IF EXISTS "Users can delete their own exam simulations" ON exam_simulations;
 
-CREATE POLICY "Read own or public exam simulations"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read own or public exam simulations' AND tablename = 'exam_simulations') THEN
+    CREATE POLICY "Read own or public exam simulations"
   ON exam_simulations FOR SELECT USING (auth.uid() = user_id OR is_public = true);
-CREATE POLICY "Users can insert their own exam simulations"
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own exam simulations' AND tablename = 'exam_simulations') THEN
+    CREATE POLICY "Users can insert their own exam simulations"
   ON exam_simulations FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own exam simulations"
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own exam simulations' AND tablename = 'exam_simulations') THEN
+    CREATE POLICY "Users can update their own exam simulations"
   ON exam_simulations FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own exam simulations"
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own exam simulations' AND tablename = 'exam_simulations') THEN
+    CREATE POLICY "Users can delete their own exam simulations"
   ON exam_simulations FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS exam_simulation_truefalse_questions (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -437,37 +659,61 @@ DROP POLICY IF EXISTS "Users can insert exam simulation tf questions" ON exam_si
 DROP POLICY IF EXISTS "Users can update exam simulation tf questions" ON exam_simulation_truefalse_questions;
 DROP POLICY IF EXISTS "Users can delete exam simulation tf questions" ON exam_simulation_truefalse_questions;
 
-CREATE POLICY "Read exam simulation tf questions"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read exam simulation tf questions' AND tablename = 'exam_simulation_truefalse_questions') THEN
+    CREATE POLICY "Read exam simulation tf questions"
   ON exam_simulation_truefalse_questions FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND (s.user_id = auth.uid() OR s.is_public = true)
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can insert exam simulation tf questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert exam simulation tf questions' AND tablename = 'exam_simulation_truefalse_questions') THEN
+    CREATE POLICY "Users can insert exam simulation tf questions"
   ON exam_simulation_truefalse_questions FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can update exam simulation tf questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update exam simulation tf questions' AND tablename = 'exam_simulation_truefalse_questions') THEN
+    CREATE POLICY "Users can update exam simulation tf questions"
   ON exam_simulation_truefalse_questions FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can delete exam simulation tf questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete exam simulation tf questions' AND tablename = 'exam_simulation_truefalse_questions') THEN
+    CREATE POLICY "Users can delete exam simulation tf questions"
   ON exam_simulation_truefalse_questions FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS exam_simulation_multiple_choice_questions (
   id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -492,37 +738,61 @@ DROP POLICY IF EXISTS "Users can insert exam simulation mc questions" ON exam_si
 DROP POLICY IF EXISTS "Users can update exam simulation mc questions" ON exam_simulation_multiple_choice_questions;
 DROP POLICY IF EXISTS "Users can delete exam simulation mc questions" ON exam_simulation_multiple_choice_questions;
 
-CREATE POLICY "Read exam simulation mc questions"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read exam simulation mc questions' AND tablename = 'exam_simulation_multiple_choice_questions') THEN
+    CREATE POLICY "Read exam simulation mc questions"
   ON exam_simulation_multiple_choice_questions FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND (s.user_id = auth.uid() OR s.is_public = true)
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can insert exam simulation mc questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert exam simulation mc questions' AND tablename = 'exam_simulation_multiple_choice_questions') THEN
+    CREATE POLICY "Users can insert exam simulation mc questions"
   ON exam_simulation_multiple_choice_questions FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can update exam simulation mc questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update exam simulation mc questions' AND tablename = 'exam_simulation_multiple_choice_questions') THEN
+    CREATE POLICY "Users can update exam simulation mc questions"
   ON exam_simulation_multiple_choice_questions FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can delete exam simulation mc questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete exam simulation mc questions' AND tablename = 'exam_simulation_multiple_choice_questions') THEN
+    CREATE POLICY "Users can delete exam simulation mc questions"
   ON exam_simulation_multiple_choice_questions FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS exam_simulation_development_questions (
   id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -547,37 +817,61 @@ DROP POLICY IF EXISTS "Users can insert exam simulation development questions" O
 DROP POLICY IF EXISTS "Users can update exam simulation development questions" ON exam_simulation_development_questions;
 DROP POLICY IF EXISTS "Users can delete exam simulation development questions" ON exam_simulation_development_questions;
 
-CREATE POLICY "Read exam simulation development questions"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Read exam simulation development questions' AND tablename = 'exam_simulation_development_questions') THEN
+    CREATE POLICY "Read exam simulation development questions"
   ON exam_simulation_development_questions FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND (s.user_id = auth.uid() OR s.is_public = true)
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can insert exam simulation development questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert exam simulation development questions' AND tablename = 'exam_simulation_development_questions') THEN
+    CREATE POLICY "Users can insert exam simulation development questions"
   ON exam_simulation_development_questions FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can update exam simulation development questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update exam simulation development questions' AND tablename = 'exam_simulation_development_questions') THEN
+    CREATE POLICY "Users can update exam simulation development questions"
   ON exam_simulation_development_questions FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
 
-CREATE POLICY "Users can delete exam simulation development questions"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete exam simulation development questions' AND tablename = 'exam_simulation_development_questions') THEN
+    CREATE POLICY "Users can delete exam simulation development questions"
   ON exam_simulation_development_questions FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM exam_simulations s
       WHERE s.id = simulation_id AND s.user_id = auth.uid()
     )
   );
+  END IF;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS exam_simulation_attempts (
   id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -598,11 +892,23 @@ ALTER TABLE exam_simulation_attempts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can read their own exam simulation attempts" ON exam_simulation_attempts;
 DROP POLICY IF EXISTS "Users can insert their own exam simulation attempts" ON exam_simulation_attempts;
 
-CREATE POLICY "Users can read their own exam simulation attempts"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own exam simulation attempts' AND tablename = 'exam_simulation_attempts') THEN
+    CREATE POLICY "Users can read their own exam simulation attempts"
   ON exam_simulation_attempts FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
-CREATE POLICY "Users can insert their own exam simulation attempts"
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own exam simulation attempts' AND tablename = 'exam_simulation_attempts') THEN
+    CREATE POLICY "Users can insert their own exam simulation attempts"
   ON exam_simulation_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- =============================================================
 -- MIGRATION SCRIPT  (run this if upgrading from v1/v2/v3)
@@ -666,10 +972,34 @@ CREATE TRIGGER update_study_guides_updated_at
 
 ALTER TABLE study_guides ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own study guides"   ON study_guides FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own study guides" ON study_guides FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own study guides" ON study_guides FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own study guides" ON study_guides FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own study guides' AND tablename = 'study_guides') THEN
+    CREATE POLICY "Users can read their own study guides"   ON study_guides FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own study guides' AND tablename = 'study_guides') THEN
+    CREATE POLICY "Users can insert their own study guides" ON study_guides FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own study guides' AND tablename = 'study_guides') THEN
+    CREATE POLICY "Users can update their own study guides" ON study_guides FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own study guides' AND tablename = 'study_guides') THEN
+    CREATE POLICY "Users can delete their own study guides" ON study_guides FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- QUIZ ATTEMPTS
@@ -692,8 +1022,20 @@ CREATE INDEX IF NOT EXISTS idx_quiz_attempts_completed_at ON quiz_attempts(user_
 
 ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own quiz attempts"   ON quiz_attempts FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own quiz attempts" ON quiz_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own quiz attempts' AND tablename = 'quiz_attempts') THEN
+    CREATE POLICY "Users can read their own quiz attempts"   ON quiz_attempts FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own quiz attempts' AND tablename = 'quiz_attempts') THEN
+    CREATE POLICY "Users can insert their own quiz attempts" ON quiz_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- TRUE/FALSE ATTEMPTS
@@ -716,8 +1058,20 @@ CREATE INDEX IF NOT EXISTS idx_tf_attempts_completed_at ON true_false_attempts(u
 
 ALTER TABLE true_false_attempts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own tf attempts"   ON true_false_attempts FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own tf attempts" ON true_false_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own tf attempts' AND tablename = 'true_false_attempts') THEN
+    CREATE POLICY "Users can read their own tf attempts"   ON true_false_attempts FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own tf attempts' AND tablename = 'true_false_attempts') THEN
+    CREATE POLICY "Users can insert their own tf attempts" ON true_false_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- FLASHCARD SESSIONS
@@ -739,8 +1093,20 @@ CREATE INDEX IF NOT EXISTS idx_fc_sessions_completed_at ON flashcard_sessions(us
 
 ALTER TABLE flashcard_sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own fc sessions"   ON flashcard_sessions FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own fc sessions" ON flashcard_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own fc sessions' AND tablename = 'flashcard_sessions') THEN
+    CREATE POLICY "Users can read their own fc sessions"   ON flashcard_sessions FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own fc sessions' AND tablename = 'flashcard_sessions') THEN
+    CREATE POLICY "Users can insert their own fc sessions" ON flashcard_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- FLASHCARD REVIEWS  (SM-2 spaced repetition state)
@@ -769,12 +1135,30 @@ CREATE INDEX IF NOT EXISTS idx_fc_reviews_due           ON flashcard_reviews(use
 
 ALTER TABLE flashcard_reviews ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own fc reviews"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own fc reviews' AND tablename = 'flashcard_reviews') THEN
+    CREATE POLICY "Users can read their own fc reviews"
   ON flashcard_reviews FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own fc reviews"
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own fc reviews' AND tablename = 'flashcard_reviews') THEN
+    CREATE POLICY "Users can insert their own fc reviews"
   ON flashcard_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own fc reviews"
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own fc reviews' AND tablename = 'flashcard_reviews') THEN
+    CREATE POLICY "Users can update their own fc reviews"
   ON flashcard_reviews FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ────────────────────────────────────────────
 -- GAME SCORES
@@ -796,8 +1180,20 @@ CREATE INDEX IF NOT EXISTS idx_game_scores_completed_at ON game_scores(user_id, 
 
 ALTER TABLE game_scores ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own game scores"   ON game_scores FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own game scores" ON game_scores FOR INSERT WITH CHECK (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own game scores' AND tablename = 'game_scores') THEN
+    CREATE POLICY "Users can read their own game scores"   ON game_scores FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own game scores' AND tablename = 'game_scores') THEN
+    CREATE POLICY "Users can insert their own game scores" ON game_scores FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- ── v4 → v5: SM-2 spaced repetition + game scores ─────────────────────
 -- (flashcard_reviews and game_scores are new tables — no ALTER needed)
@@ -829,8 +1225,14 @@ ALTER TABLE generation_jobs ENABLE ROW LEVEL SECURITY;
 -- Jobs are accessed server-side with the service role key, so RLS is a
 -- safety net: users should never reach this table directly from the browser.
 DROP POLICY IF EXISTS "Users can read their own jobs" ON generation_jobs;
-CREATE POLICY "Users can read their own jobs"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own jobs' AND tablename = 'generation_jobs') THEN
+    CREATE POLICY "Users can read their own jobs"
   ON generation_jobs FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 -- v5 ? v6 upgrade note
 -- =============================================================
@@ -861,8 +1263,14 @@ CREATE TRIGGER update_ai_user_quotas_updated_at
 ALTER TABLE ai_user_quotas ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can read their own ai quotas" ON ai_user_quotas;
-CREATE POLICY "Users can read their own ai quotas"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read their own ai quotas' AND tablename = 'ai_user_quotas') THEN
+    CREATE POLICY "Users can read their own ai quotas"
   ON ai_user_quotas FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 
 DROP FUNCTION IF EXISTS consume_ai_credits(UUID, INTEGER, INTEGER, INTEGER, INTEGER);
 
@@ -1039,8 +1447,14 @@ CREATE INDEX IF NOT EXISTS idx_push_tokens_user_id ON push_tokens(user_id);
 ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Only allow the backend (service_role) to read/write push tokens
-CREATE POLICY "Service role manages push tokens"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Service role manages push tokens' AND tablename = 'push_tokens') THEN
+    CREATE POLICY "Service role manages push tokens"
   ON push_tokens
   FOR ALL
   USING (true)
   WITH CHECK (true);
+  END IF;
+END $$;
+
