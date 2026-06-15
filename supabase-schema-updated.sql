@@ -242,6 +242,11 @@ CREATE TABLE IF NOT EXISTS flashcard_sets (
 );
 
 -- Ensure FK constraints exist even if CREATE TABLE IF NOT EXISTS skipped them
+-- First, clean orphaned rows that would violate the FKs
+DELETE FROM flashcards WHERE set_id IS NOT NULL AND set_id NOT IN (SELECT id FROM flashcard_sets);
+DELETE FROM flashcard_sets WHERE user_id NOT IN (SELECT id FROM auth.users);
+DELETE FROM flashcard_sets WHERE category_id NOT IN (SELECT id FROM categories);
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'flashcard_sets_user_id_fkey') THEN
