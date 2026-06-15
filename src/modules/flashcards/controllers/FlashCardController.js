@@ -57,11 +57,13 @@ class FlashCardController {
       }
 
       const { file, text, categoryId } = this._validateAndExtractInput(req);
+      const title = req.body?.title || "Sin título";
 
       const flashCard = await this.flashCardService.processInput({
         file,
         text,
         quantity: 1,
+        title,
         userId,
         categoryId,
       });
@@ -81,10 +83,12 @@ class FlashCardController {
 
       const { file, text, quantity, categoryId } =
         this._validateAndExtractInput(req);
+      const title = req.body?.title || "Sin título";
 
       const flashCards = await this.flashCardService.processInput({
         file,
         text,
+        title,
         quantity,
         userId,
         categoryId,
@@ -105,10 +109,12 @@ class FlashCardController {
 
       const { file, text, quantity, categoryId } =
         this._validateAndExtractInput(req);
+      const title = req.body?.title || "Sin título";
       const job = this.generationJobService.createJob({
         userId,
         type: "flashcard-generation",
         metadata: {
+          title,
           quantity,
           fileName: file?.originalname || null,
           inputMode: file ? "file" : "text",
@@ -134,6 +140,7 @@ class FlashCardController {
           const flashCards = await this.flashCardService.processInput({
             file,
             text,
+            title,
             quantity,
             userId,
             categoryId,
@@ -532,6 +539,78 @@ class FlashCardController {
         'attachment; filename="flashcards.csv"',
       );
       res.send("\uFEFF" + csv); // BOM for Excel UTF-8 detection
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  // ── Flashcard Set endpoints ─────────────────────────────────────────────
+
+  async createSet(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const { title, categoryId, description, cards } = req.body;
+      const set = await this.flashCardService.createSet({ title, categoryId, description, cards }, userId);
+      res.status(201).json(set);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async getSets(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const { categoryId } = req.query;
+      const sets = await this.flashCardService.getSets(userId, { categoryId });
+      res.json(sets);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async getSetById(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const set = await this.flashCardService.getSetById(req.params.id, userId);
+      if (!set) return res.status(404).json({ error: "Set not found" });
+      res.json(set);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async updateSet(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const set = await this.flashCardService.updateSet(req.params.id, userId, req.body);
+      if (!set) return res.status(404).json({ error: "Set not found" });
+      res.json(set);
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async deleteSet(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      await this.flashCardService.deleteSet(req.params.id, userId);
+      res.json({ message: "Set deleted" });
+    } catch (error) {
+      this._handleError(error, res);
+    }
+  }
+
+  async publishSet(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const result = await this.flashCardService.publishSet(req.params.id, userId, req.body.isPublic);
+      res.json(result);
     } catch (error) {
       this._handleError(error, res);
     }

@@ -83,6 +83,14 @@ function createFlashCardRouter(flashCardController, aiUsageMiddleware) {
     flashCardController.exportFlashCards(req, res),
   );
 
+  // Flashcard Sets
+  router.post("/sets", (req, res) => flashCardController.createSet(req, res));
+  router.get("/sets", (req, res) => flashCardController.getSets(req, res));
+  router.get("/sets/:id", (req, res) => flashCardController.getSetById(req, res));
+  router.put("/sets/:id", (req, res) => flashCardController.updateSet(req, res));
+  router.delete("/sets/:id", (req, res) => flashCardController.deleteSet(req, res));
+  router.patch("/sets/:id/publish", (req, res) => flashCardController.publishSet(req, res));
+
   router.post("/:id/review", (req, res) =>
     flashCardController.submitReview(req, res),
   );

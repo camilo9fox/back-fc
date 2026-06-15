@@ -43,6 +43,7 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
             source: flashCard.source || "manual",
             user_id: flashCard.userId,
             category_id: flashCard.categoryId,
+            set_id: flashCard.setId || null,
           },
         ])
         .select()
@@ -78,6 +79,7 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         source: card.source || "manual",
         user_id: userId,
         category_id: card.categoryId,
+        set_id: card.setId || null,
       }));
 
       const { data, error } = await this.supabase
@@ -315,6 +317,129 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
       logger.error("SupabaseFlashCardRepository.count error:", error);
       throw error;
     }
+  }
+
+  // ── Flashcard Set methods ────────────────────────────────────────────────
+
+  async createSet({ userId, categoryId, title, description, cards }) {
+    const { data: set, error: setErr } = await this.supabase
+      .from("flashcard_sets")
+      .insert({ user_id: userId, category_id: categoryId, title, description })
+      .select()
+      .single();
+
+    if (setErr) throw new Error(`Error creating set: ${setErr.message}`);
+
+    if (cards && cards.length > 0) {
+      const rows = cards.map((c) => ({
+        question: c.question,
+        answer: c.answer,
+        source: c.source || "ai",
+        user_id: userId,
+        category_id: categoryId,
+        set_id: set.id,
+      }));
+      await this.supabase.from(this.tableName).insert(rows);
+    }
+
+    return this.findSetById(set.id, userId);
+  }
+
+  async findAllSets(userId, options = {}) {
+    let query = this.supabase
+      .from("flashcard_sets")
+      .select(`*, categories(id,title,description)`)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (options.categoryId) query = query.eq("category_id", options.categoryId);
+    if (options.limit) query = query.limit(options.limit);
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Error finding sets: ${error.message}`);
+
+    return (data || []).map((s) => this._normalizeSet(s));
+  }
+
+  async findSetById(id, userId) {
+    const { data: set, error: setErr } = await this.supabase
+      .from("flashcard_sets")
+      .select(`*, categories(id,title,description)`)
+      .eq("id", id)
+      .eq("user_id", userId)
+      .single();
+
+    if (setErr && setErr.code !== "PGRST116") throw new Error(`Error finding set: ${setErr.message}`);
+    if (!set) return null;
+
+    const { data: cards } = await this.supabase
+      .from(this.tableName)
+      .select("*")
+      .eq("set_id", id)
+      .order("created_at");
+
+    return this._normalizeSet({ ...set, flashcards: cards || [] });
+  }
+
+  async updateSet(id, userId, updates) {
+    const fields = {};
+    if (updates.title !== undefined) fields.title = updates.title;
+    if (updates.description !== undefined) fields.description = updates.description;
+
+    const { error } = await this.supabase
+      .from("flashcard_sets")
+      .update(fields)
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) throw new Error(`Error updating set: ${error.message}`);
+    return this.findSetById(id, userId);
+  }
+
+  async deleteSet(id, userId) {
+    const { error } = await this.supabase
+      .from("flashcard_sets")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) throw new Error(`Error deleting set: ${error.message}`);
+    return true;
+  }
+
+  async publishSet(id, userId, isPublic) {
+    const { error } = await this.supabase
+      .from("flashcard_sets")
+      .update({ is_public: isPublic })
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) throw new Error(`Error publishing set: ${error.message}`);
+
+    // Also publish all flashcards in the set
+    await this.supabase
+      .from(this.tableName)
+      .update({ is_public: isPublic })
+      .eq("set_id", id);
+
+    return { isPublic };
+  }
+
+  _normalizeSet(set) {
+    if (!set) return set;
+    const { categories, flashcards, ...rest } = set;
+    return {
+      ...rest,
+      category: categories ?? null,
+      cards: (flashcards || []).map((c) => ({
+        id: c.id,
+        question: c.question,
+        answer: c.answer,
+        source: c.source,
+        categoryId: c.category_id,
+        createdAt: c.created_at,
+      })),
+    };
   }
 }
 

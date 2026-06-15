@@ -29,3 +29,41 @@ class FlashCardDto {
 }
 
 module.exports = FlashCardDto;
+
+class FlashCardSetDto {
+  constructor(title, categoryId, description, cards) {
+    this.title = title;
+    this.categoryId = categoryId;
+    this.description = description || null;
+    this.cards = cards || [];
+  }
+
+  isValid() {
+    return (
+      typeof this.title === "string" &&
+      this.title.trim().length > 0 &&
+      typeof this.categoryId === "string" &&
+      this.categoryId.trim().length > 0 &&
+      Array.isArray(this.cards) &&
+      this.cards.length > 0 &&
+      this.cards.every(
+        (c) =>
+          typeof c.question === "string" &&
+          c.question.trim().length > 0 &&
+          typeof c.answer === "string" &&
+          c.answer.trim().length > 0,
+      )
+    );
+  }
+
+  static buildCard(data, index) {
+    return {
+      question: String(data.question || "").trim(),
+      answer: String(data.answer || "").trim(),
+      source: data.source || "manual",
+      order_index: index,
+    };
+  }
+}
+
+module.exports = { FlashCardDto, FlashCardSetDto };

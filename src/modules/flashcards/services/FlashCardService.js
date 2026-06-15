@@ -1,5 +1,5 @@
 const logger = require("../../../shared/config/logger");
-const FlashCardDto = require("../dtos/FlashCardDto");
+const { FlashCardDto, FlashCardSetDto } = require("../dtos/FlashCardDto");
 const config = require("../../../shared/config/config");
 const { ValidationError } = require("../../../shared/errors/AppError");
 
@@ -51,6 +51,7 @@ class FlashCardService {
   async processInput({
     file,
     text,
+    title,
     quantity = 1,
     userId,
     categoryId,
@@ -208,6 +209,47 @@ class FlashCardService {
         },
       },
     );
+  }
+
+  // ── Flashcard Set management ────────────────────────────────────────────
+
+  async createSet({ title, categoryId, description, cards }, userId) {
+    const dto = new FlashCardSetDto(title, categoryId, description, cards);
+    if (!dto.isValid()) {
+      throw new ValidationError(
+        "Invalid set data: title, categoryId and at least one valid card are required",
+      );
+    }
+    return this.flashCardRepository.createSet({
+      userId,
+      categoryId,
+      title: dto.title.trim(),
+      description: dto.description,
+      cards: dto.cards,
+    });
+  }
+
+  async getSets(userId, options = {}) {
+    return this.flashCardRepository.findAllSets(userId, options);
+  }
+
+  async getSetById(id, userId) {
+    const set = await this.flashCardRepository.findSetById(id, userId);
+    if (!set) throw new ValidationError("Set not found");
+    return set;
+  }
+
+  async updateSet(id, userId, updates) {
+    await this.flashCardRepository.findSetById(id, userId);
+    return this.flashCardRepository.updateSet(id, userId, updates);
+  }
+
+  async deleteSet(id, userId) {
+    return this.flashCardRepository.deleteSet(id, userId);
+  }
+
+  async publishSet(id, userId, isPublic) {
+    return this.flashCardRepository.publishSet(id, userId, isPublic);
   }
 }
 

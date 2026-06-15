@@ -3,7 +3,7 @@
  * Verifies validation rules without any I/O.
  */
 
-const FlashCardDto = require("../../../src/modules/flashcards/dtos/FlashCardDto");
+const { FlashCardDto } = require("../../../src/modules/flashcards/dtos/FlashCardDto");
 
 describe("FlashCardDto", () => {
   describe("isValid()", () => {

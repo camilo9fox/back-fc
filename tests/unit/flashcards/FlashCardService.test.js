@@ -68,7 +68,7 @@ describe("FlashCardService.processInput() — validation", () => {
   it("throws ValidationError when userId is missing", async () => {
     const { service } = buildService();
     await expect(
-      service.processInput({ text: "algo", quantity: 1, userId: "" }),
+      service.processInput({ text: "algo", title: "Test", quantity: 1, userId: "" }),
     ).rejects.toThrow(ValidationError);
   });
 
@@ -77,6 +77,7 @@ describe("FlashCardService.processInput() — validation", () => {
     await expect(
       service.processInput({
         text: "algo",
+        title: "Test",
         quantity: 0,
         userId: VALID_USER_ID,
       }),
@@ -88,6 +89,7 @@ describe("FlashCardService.processInput() — validation", () => {
     await expect(
       service.processInput({
         text: "algo",
+        title: "Test",
         quantity: 11,
         userId: VALID_USER_ID,
       }),
@@ -97,7 +99,7 @@ describe("FlashCardService.processInput() — validation", () => {
   it("throws ValidationError when no file and no text are provided", async () => {
     const { service } = buildService();
     await expect(
-      service.processInput({ text: "", quantity: 1, userId: VALID_USER_ID }),
+      service.processInput({ text: "", title: "Test", quantity: 1, userId: VALID_USER_ID }),
     ).rejects.toThrow(ValidationError);
   });
 
@@ -110,6 +112,7 @@ describe("FlashCardService.processInput() — validation", () => {
     await expect(
       service.processInput({
         text: "contenido",
+        title: "Test",
         quantity: 5,
         userId: VALID_USER_ID,
       }),
