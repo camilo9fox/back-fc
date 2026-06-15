@@ -11,8 +11,8 @@ class LibraryService {
     return this.libraryRepository.forkCategory(sourceCategoryId, targetUserId);
   }
 
-  async getCategoryPreview(categoryId) {
-    return this.libraryRepository.getCategoryPreview(categoryId);
+  async getCategoryPreview(categoryId, userId = null) {
+    return this.libraryRepository.getCategoryPreview(categoryId, userId);
   }
 }
 

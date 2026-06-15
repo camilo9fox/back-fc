@@ -88,14 +88,18 @@ class SupabaseLibraryRepository extends ILibraryRepository {
 
       // Check which public categories the user already imported
       const forkedIds = new Set();
+      const forkIdBySource = {};
       if (userId && catIds.length > 0) {
         const { data: forked } = await this.supabase
           .from("categories")
-          .select("forked_from")
+          .select("id, forked_from")
           .eq("user_id", userId)
           .in("forked_from", catIds);
         for (const f of forked || []) {
-          if (f.forked_from) forkedIds.add(f.forked_from);
+          if (f.forked_from) {
+            forkedIds.add(f.forked_from);
+            forkIdBySource[f.forked_from] = f.id;
+          }
         }
       }
 
@@ -106,6 +110,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           description: c.description,
           userId: c.user_id,
           createdAt: c.created_at,
+          isOwner: userId ? c.user_id === userId : false,
           flashcardCount: flashCount[c.id] || 0,
           quizCount: quizCount[c.id] || 0,
           trueFalseCount: tfCount[c.id] || 0,
@@ -412,7 +417,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
 
   // ─── Preview a public category ────────────────────────────────────────────
 
-  async getCategoryPreview(categoryId) {
+  async getCategoryPreview(categoryId, userId = null) {
     try {
       // Verify category is public
       const { data: cat, error: catErr } = await this.supabase
@@ -423,6 +428,36 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         .single();
 
       if (catErr || !cat) throw new Error("Category not found or not public");
+
+      // Check if user has a fork to detect new items
+      let forkId = null;
+      let forkQA = new Set();
+      let forkQuizTitles = new Set();
+      let forkTfTitles = new Set();
+      let forkGuideTitles = new Set();
+
+      if (userId) {
+        const { data: fork } = await this.supabase
+          .from("categories")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("forked_from", categoryId)
+          .maybeSingle();
+
+        if (fork) {
+          forkId = fork.id;
+          const [fFlash, fQuiz, fTf, fGuide] = await Promise.all([
+            this.supabase.from("flashcards").select("question, answer").eq("category_id", forkId),
+            this.supabase.from("quizzes").select("title").eq("category_id", forkId),
+            this.supabase.from("true_false_sets").select("title").eq("category_id", forkId),
+            this.supabase.from("study_guides").select("title").eq("category_id", forkId),
+          ]);
+          for (const fc of fFlash.data || []) forkQA.add(fc.question + "|||" + fc.answer);
+          for (const q of fQuiz.data || []) forkQuizTitles.add(q.title);
+          for (const t of fTf.data || []) forkTfTitles.add(t.title);
+          for (const g of fGuide.data || []) forkGuideTitles.add(g.title);
+        }
+      }
 
       // Fetch sample content in parallel (max 5 per type)
       const [flashRes, quizRes, tfRes, sgRes] = await Promise.all([
@@ -456,25 +491,30 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         id: cat.id,
         title: cat.title,
         description: cat.description,
+        isForked: !!forkId,
         flashcards: (flashRes.data || []).map((f) => ({
           id: f.id,
           question: f.question,
           answer: f.answer,
           set: f.flashcard_sets ?? null,
+          isNew: forkId ? !forkQA.has(f.question + "|||" + f.answer) : false,
         })),
         quizzes: (quizRes.data || []).map((q) => ({
           id: q.id,
           title: q.title,
           description: q.description,
+          isNew: forkId ? !forkQuizTitles.has(q.title) : false,
         })),
         trueFalseSets: (tfRes.data || []).map((t) => ({
           id: t.id,
           title: t.title,
           description: t.description,
+          isNew: forkId ? !forkTfTitles.has(t.title) : false,
         })),
         studyGuides: (sgRes.data || []).map((g) => ({
           id: g.id,
           title: g.title,
+          isNew: forkId ? !forkGuideTitles.has(g.title) : false,
         })),
       };
     } catch (error) {

@@ -39,7 +39,8 @@ class LibraryController {
   async getCategoryPreview(req, res) {
     try {
       const { categoryId } = req.params;
-      const result = await this.libraryService.getCategoryPreview(categoryId);
+      const userId = req.user?.id || null;
+      const result = await this.libraryService.getCategoryPreview(categoryId, userId);
       res.json(result);
     } catch (error) {
       this._handleError(error, res);

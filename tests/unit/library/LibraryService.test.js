@@ -59,6 +59,7 @@ describe("LibraryService.getCategoryPreview()", () => {
     const result = await service.getCategoryPreview(VALID_CATEGORY_ID);
     expect(libraryRepository.getCategoryPreview).toHaveBeenCalledWith(
       VALID_CATEGORY_ID,
+      null,
     );
     expect(result.id).toBe(VALID_CATEGORY_ID);
   });
