@@ -402,9 +402,6 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         }
       }
 
-        studyGuideCount = (newStudyGuides || []).length;
-      }
-
       return {
         categoryId: newCatId,
         flashcardCount,
