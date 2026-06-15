@@ -437,6 +437,7 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
     if (!set) return set;
     const { categories, flashcards, ...rest } = set;
     const category = categories ?? null;
+    const setInfo = { id: rest.id, title: rest.title };
     return {
       ...rest,
       category,
@@ -447,6 +448,7 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
         source: c.source,
         categoryId: c.category_id,
         category,
+        set: setInfo,
         createdAt: c.created_at,
       })),
     };
