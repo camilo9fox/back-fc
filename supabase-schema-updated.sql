@@ -241,6 +241,17 @@ CREATE TABLE IF NOT EXISTS flashcard_sets (
   updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Ensure FK constraints exist even if CREATE TABLE IF NOT EXISTS skipped them
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'flashcard_sets_user_id_fkey') THEN
+    ALTER TABLE flashcard_sets ADD CONSTRAINT flashcard_sets_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'flashcard_sets_category_id_fkey') THEN
+    ALTER TABLE flashcard_sets ADD CONSTRAINT flashcard_sets_category_id_fkey FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_user_id     ON flashcard_sets(user_id);
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_category_id ON flashcard_sets(category_id);
 CREATE INDEX IF NOT EXISTS idx_flashcard_sets_created_at  ON flashcard_sets(created_at DESC);
