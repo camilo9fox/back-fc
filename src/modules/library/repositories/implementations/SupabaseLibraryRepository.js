@@ -54,17 +54,14 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         this.supabase
           .from("flashcards")
           .select("category_id")
-          .eq("is_public", true)
           .in("category_id", catIds),
         this.supabase
           .from("quizzes")
           .select("category_id")
-          .eq("is_public", true)
           .in("category_id", catIds),
         this.supabase
           .from("true_false_sets")
           .select("category_id")
-          .eq("is_public", true)
           .in("category_id", catIds),
         this.supabase
           .from("study_guides")
@@ -138,6 +135,10 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       if (catErr || !srcCat)
         throw new Error("Category not found or not public");
 
+      // Prevent importing own category
+      if (srcCat.user_id === targetUserId)
+        throw new Error("No puedes importar tu propio tema.");
+
       // 2. Check if user already imported this category
       const { data: existingFork } = await this.supabase
         .from("categories")
@@ -172,8 +173,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       const { data: srcFlashcards } = await this.supabase
         .from("flashcards")
         .select("id, question, answer, source, set_id")
-        .eq("category_id", sourceCategoryId)
-        .eq("is_public", true);
+        .eq("category_id", sourceCategoryId);
 
       let flashcardCount = 0;
       if (srcFlashcards && srcFlashcards.length > 0) {
@@ -230,8 +230,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       const { data: srcQuizzes } = await this.supabase
         .from("quizzes")
         .select("id, title, description")
-        .eq("category_id", sourceCategoryId)
-        .eq("is_public", true);
+        .eq("category_id", sourceCategoryId);
 
       let quizCount = 0;
       for (const quiz of srcQuizzes || []) {
@@ -267,8 +266,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       const { data: srcTfSets } = await this.supabase
         .from("true_false_sets")
         .select("id, title, description")
-        .eq("category_id", sourceCategoryId)
-        .eq("is_public", true);
+        .eq("category_id", sourceCategoryId);
 
       let trueFalseCount = 0;
       for (const set of srcTfSets || []) {
@@ -356,21 +354,18 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           .from("flashcards")
           .select("id, question, answer, flashcard_sets(id,title)")
           .eq("category_id", categoryId)
-          .eq("is_public", true)
           .order("created_at", { ascending: true })
           .limit(5),
         this.supabase
           .from("quizzes")
           .select("id, title, description")
           .eq("category_id", categoryId)
-          .eq("is_public", true)
           .order("created_at", { ascending: true })
           .limit(5),
         this.supabase
           .from("true_false_sets")
           .select("id, title, description")
           .eq("category_id", categoryId)
-          .eq("is_public", true)
           .order("created_at", { ascending: true })
           .limit(5),
         this.supabase
