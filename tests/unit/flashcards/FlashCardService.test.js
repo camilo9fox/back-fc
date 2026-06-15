@@ -52,6 +52,8 @@ function buildService({
       documentProcessingService,
       flashCardRepository,
       categoryService,
+      null, // contentSafetyService
+      groqService, // realGroqService
     ),
     groqService,
     fileService,

@@ -16,10 +16,12 @@ class TrueFalseService {
     fileService,
     documentProcessingService,
     contentSafetyService,
+    realGroqService,
   ) {
     this.trueFalseRepository = trueFalseRepository;
     this.categoryService = categoryService;
     this.generationService = generationService;
+    this.realGroqService = realGroqService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
     this.contentSafetyService = contentSafetyService;
@@ -98,7 +100,7 @@ class TrueFalseService {
     report("Analizando el documento", 30);
     content = await this.documentProcessingService.buildStudyContext(
       content,
-      this.generationService,
+      this.realGroqService,
       {
         maxLength: 4500,
         fastPathMaxInputChars: 260000,

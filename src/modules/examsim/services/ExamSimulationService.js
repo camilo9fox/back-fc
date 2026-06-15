@@ -13,6 +13,7 @@ class ExamSimulationService {
     examSimulationGenerationService,
     fileService,
     documentProcessingService,
+    realGroqService,
   ) {
     this.examSimulationRepository = examSimulationRepository;
     this.categoryService = categoryService;
@@ -20,6 +21,7 @@ class ExamSimulationService {
     this.examSimulationGenerationService = examSimulationGenerationService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
+    this.realGroqService = realGroqService;
   }
 
   pickRandom(items = [], target = 0) {
@@ -173,7 +175,7 @@ class ExamSimulationService {
         const normalized =
           await this.documentProcessingService.buildStudyContext(
             extracted,
-            this.examSimulationGenerationService,
+            this.realGroqService,
             {
               maxLength: 4500,
               fastPathMaxInputChars: 260000,

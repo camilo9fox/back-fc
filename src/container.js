@@ -142,6 +142,7 @@ class Container {
         c.get("flashCardRepository"),
         c.get("categoryService"),
         c.get("contentSafetyService"),
+        c.get("groqService"),
       );
     });
 
@@ -243,6 +244,7 @@ class Container {
         c.get("fileService"),
         c.get("documentProcessingService"),
         c.get("contentSafetyService"),
+        c.get("groqService"),
       );
     });
 
@@ -277,6 +279,7 @@ class Container {
         c.get("fileService"),
         c.get("documentProcessingService"),
         c.get("contentSafetyService"),
+        c.get("groqService"),
       );
     });
 
@@ -320,6 +323,7 @@ class Container {
         c.get("studyGuideGenerationService"),
         c.get("fileService"),
         c.get("documentProcessingService"),
+        c.get("groqService"),
       );
     });
 
@@ -354,6 +358,7 @@ class Container {
         c.get("examSimulationGenerationService"),
         c.get("fileService"),
         c.get("documentProcessingService"),
+        c.get("groqService"),
       );
     });
 

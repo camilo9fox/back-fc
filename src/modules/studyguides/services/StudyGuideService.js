@@ -11,12 +11,14 @@ class StudyGuideService {
     studyGuideGenerationService,
     fileService,
     documentProcessingService,
+    realGroqService,
   ) {
     this.studyGuideRepository = studyGuideRepository;
     this.categoryService = categoryService;
     this.studyGuideGenerationService = studyGuideGenerationService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
+    this.realGroqService = realGroqService;
   }
 
   estimateDocumentScale(rawContent, actualPageCount = null) {
@@ -155,7 +157,7 @@ class StudyGuideService {
     report("Analizando el documento", 30);
     content = await this.documentProcessingService.buildStudyContext(
       content,
-      this.studyGuideGenerationService,
+      this.realGroqService,
       {
         maxLength: scale.contextMaxLength,
         // Sparse/slide PDFs: force fast path so raw text is sent directly to the

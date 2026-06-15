@@ -15,8 +15,10 @@ class FlashCardService {
     flashCardRepository,
     categoryService,
     contentSafetyService,
+    realGroqService,
   ) {
     this.groqService = groqService;
+    this.realGroqService = realGroqService;
     this.fileService = fileService;
     this.documentProcessingService = documentProcessingService;
     this.flashCardRepository = flashCardRepository;
@@ -196,7 +198,7 @@ class FlashCardService {
     this.reportProgress(onProgress, "Analizando el documento", 20);
     return this.documentProcessingService.buildStudyContext(
       content,
-      this.groqService,
+      this.realGroqService,
       {
         maxLength: this.MAX_CONTENT_LENGTH,
         fastPathMinChunks: this.FAST_PATH_MIN_CHUNKS,
