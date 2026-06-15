@@ -190,6 +190,9 @@ CREATE INDEX IF NOT EXISTS idx_categories_user_id    ON categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_categories_created_at ON categories(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_categories_public     ON categories(created_at DESC) WHERE is_public = true;
 
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS forked_from UUID;
+CREATE INDEX IF NOT EXISTS idx_categories_forked_from ON categories(forked_from);
+
 CREATE TRIGGER update_categories_updated_at
     BEFORE UPDATE ON categories
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -9,10 +9,12 @@ class LibraryController {
   async getCategories(req, res) {
     try {
       const { limit = 20, offset = 0, search = "" } = req.query;
+      const userId = req.user?.id || null;
       const result = await this.libraryService.getPublicCategories({
         limit: Math.min(parseInt(limit) || 20, 100),
         offset: parseInt(offset) || 0,
         search: String(search).slice(0, 100),
+        userId,
       });
       res.json(result);
     } catch (error) {

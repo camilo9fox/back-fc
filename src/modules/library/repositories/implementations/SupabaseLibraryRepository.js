@@ -21,7 +21,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
 
   // ─── List public categories ───────────────────────────────────────────────
 
-  async getPublicCategories({ limit = 20, offset = 0, search = "" } = {}) {
+  async getPublicCategories({ limit = 20, offset = 0, search = "", userId = null } = {}) {
     try {
       let query = this.supabase
         .from("categories")
@@ -89,6 +89,19 @@ class SupabaseLibraryRepository extends ILibraryRepository {
         studyGuideCount[g.category_id] =
           (studyGuideCount[g.category_id] || 0) + 1;
 
+      // Check which public categories the user already imported
+      const forkedIds = new Set();
+      if (userId && catIds.length > 0) {
+        const { data: forked } = await this.supabase
+          .from("categories")
+          .select("forked_from")
+          .eq("user_id", userId)
+          .in("forked_from", catIds);
+        for (const f of forked || []) {
+          if (f.forked_from) forkedIds.add(f.forked_from);
+        }
+      }
+
       return {
         categories: categories.map((c) => ({
           id: c.id,
@@ -100,6 +113,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
           quizCount: quizCount[c.id] || 0,
           trueFalseCount: tfCount[c.id] || 0,
           studyGuideCount: studyGuideCount[c.id] || 0,
+          alreadyImported: forkedIds.has(c.id),
         })),
         total: count ?? categories.length,
       };
@@ -124,7 +138,18 @@ class SupabaseLibraryRepository extends ILibraryRepository {
       if (catErr || !srcCat)
         throw new Error("Category not found or not public");
 
-      // 2. Create new category for the importing user
+      // 2. Check if user already imported this category
+      const { data: existingFork } = await this.supabase
+        .from("categories")
+        .select("id")
+        .eq("user_id", targetUserId)
+        .eq("forked_from", sourceCategoryId)
+        .maybeSingle();
+
+      if (existingFork)
+        throw new Error("Ya importaste este tema anteriormente. Búscalo en Mis temas de estudio.");
+
+      // 3. Create new category for the importing user
       const { data: newCat, error: newCatErr } = await this.supabase
         .from("categories")
         .insert([
@@ -132,6 +157,7 @@ class SupabaseLibraryRepository extends ILibraryRepository {
             user_id: targetUserId,
             title: srcCat.title,
             description: srcCat.description,
+            forked_from: sourceCategoryId,
           },
         ])
         .select("id")
