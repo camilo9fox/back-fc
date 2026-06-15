@@ -218,7 +218,7 @@ class FlashCardController {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { question, answer, categoryId } = req.body;
+      const { question, answer, categoryId, setId } = req.body;
 
       if (!question || !answer) {
         return res.status(400).json({
@@ -241,7 +241,7 @@ class FlashCardController {
       }
 
       const flashCard = await this.manualFlashCardService.createFlashCard(
-        { question, answer },
+        { question, answer, setId },
         userId,
         categoryId,
       );

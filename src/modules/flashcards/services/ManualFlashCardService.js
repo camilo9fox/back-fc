@@ -23,7 +23,7 @@ class ManualFlashCardService {
    * @param {string} categoryId - Category ID (optional, will use default "General" if not provided)
    * @returns {Promise<Object>} Created flashcard data with ID and timestamps
    */
-  async createFlashCard({ question, answer }, userId, categoryId = null) {
+  async createFlashCard({ question, answer, setId }, userId, categoryId = null) {
     if (!userId) {
       throw new ValidationError("User ID is required to create flashcard");
     }
@@ -58,6 +58,7 @@ class ManualFlashCardService {
       source: "manual",
       userId,
       categoryId: finalCategoryId,
+      setId: setId || null,
     });
 
     return savedFlashCard;
@@ -97,10 +98,12 @@ class ManualFlashCardService {
         }
         const source = flashCardsData[i].source === "ai" ? "ai" : "manual";
         const cardCategoryId = flashCardsData[i].categoryId || categoryId;
+        const setId = flashCardsData[i].setId || null;
         validatedFlashCards.push({
           ...validatedCard,
           source,
           categoryId: cardCategoryId,
+          setId,
         });
       } catch (error) {
         throw new ValidationError(
