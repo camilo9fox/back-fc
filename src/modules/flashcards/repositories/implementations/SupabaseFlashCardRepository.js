@@ -428,15 +428,17 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
   _normalizeSet(set) {
     if (!set) return set;
     const { categories, flashcards, ...rest } = set;
+    const category = categories ?? null;
     return {
       ...rest,
-      category: categories ?? null,
+      category,
       cards: (flashcards || []).map((c) => ({
         id: c.id,
         question: c.question,
         answer: c.answer,
         source: c.source,
         categoryId: c.category_id,
+        category,
         createdAt: c.created_at,
       })),
     };
