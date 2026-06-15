@@ -90,6 +90,10 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
             id,
             title,
             description
+          ),
+          flashcard_sets (
+            id,
+            title
           )
         `);
 
@@ -154,6 +158,10 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
             id,
             title,
             description
+          ),
+          flashcard_sets (
+            id,
+            title
           )
         `,
         )
@@ -203,8 +211,8 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
    */
   _normalize(card) {
     if (!card) return card;
-    const { categories, ...rest } = card;
-    return { ...rest, category: categories ?? null };
+    const { categories, flashcard_sets, ...rest } = card;
+    return { ...rest, category: categories ?? null, set: flashcard_sets ?? null };
   }
 
   /**
