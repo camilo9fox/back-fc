@@ -19,6 +19,11 @@ const config = {
         return callback(null, true);
       }
 
+      // Allow Vercel preview/production domains
+      if (origin.endsWith(".vercel.app")) {
+        return callback(null, true);
+      }
+
       // Allow the configured frontend URL
       const frontendUrl = process.env.FRONTEND_URL;
       if (frontendUrl && origin === frontendUrl) {
