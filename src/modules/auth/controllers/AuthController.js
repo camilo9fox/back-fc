@@ -63,6 +63,10 @@ class AuthController {
           .status(409)
           .json({ error: "User already exists with this email" });
       }
+      // Our own duplicate-email detection (Supabase silently returns 200)
+      if (error.message && error.message.includes("Ya existe una cuenta")) {
+        return res.status(409).json({ error: error.message });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   }

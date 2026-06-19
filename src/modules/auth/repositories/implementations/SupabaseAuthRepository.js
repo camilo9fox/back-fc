@@ -57,6 +57,13 @@ class SupabaseAuthRepository {
           throw new Error(`Error creating user: ${error.message}`);
         }
 
+        // If identities is empty, the email already exists (Supabase silently returns 200)
+        if (data.user && (!data.session || !data.user.identities?.length)) {
+          throw new Error(
+            "Ya existe una cuenta con este email. Inicia sesión o recupera tu contraseña.",
+          );
+        }
+
         return {
           user: {
             id: data.user.id,
