@@ -38,11 +38,17 @@ class SupabaseAuthRepository {
 
       if (isProduction) {
         // Production: use public signUp() so Supabase sends verification email
+        const frontendUrl = (
+          process.env.FRONTEND_URL ||
+          "https://flashylab.vercel.app"
+        ).replace(/\/$/, "");
+
         const { data, error } = await this.supabaseAnonClient.auth.signUp({
           email,
           password,
           options: {
             data: metadata,
+            emailRedirectTo: `${frontendUrl}/verification-success`,
           },
         });
 
