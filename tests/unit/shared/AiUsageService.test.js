@@ -1,7 +1,7 @@
 jest.mock("../../../src/shared/config/config", () => ({
   aiUsage: {
     enabled: true,
-    dailyCredits: 30,
+    weeklyCredits: 30,
     burstWindowSeconds: 300,
     burstLimit: 3,
     costs: {

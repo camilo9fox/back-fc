@@ -61,7 +61,7 @@ const config = {
   },
   aiUsage: {
     enabled: String(process.env.AI_USAGE_ENABLED || "true") !== "false",
-    dailyCredits: Number(process.env.AI_DAILY_CREDITS) || 30,
+    weeklyCredits: Number(process.env.AI_WEEKLY_CREDITS) || 30,
     burstWindowSeconds: Number(process.env.AI_BURST_WINDOW_SECONDS) || 300,
     burstLimit: Number(process.env.AI_BURST_LIMIT) || 3,
     costs: {

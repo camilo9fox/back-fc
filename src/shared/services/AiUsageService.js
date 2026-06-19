@@ -31,7 +31,7 @@ class AiUsageService {
     const result = await this.aiUsageRepository.consumeCredits({
       userId,
       credits: cost,
-      dailyLimit: this.policy.dailyCredits,
+      dailyLimit: this.policy.weeklyCredits,
       burstWindowSeconds: this.policy.burstWindowSeconds,
       burstLimit: this.policy.burstLimit,
     });
@@ -39,13 +39,13 @@ class AiUsageService {
     if (!result.allowed) {
       const error = new TooManyRequestsError(
         result.reason === "daily_limit"
-          ? "Límite diario de créditos agotado"
+          ? "Límite de créditos semanal agotado"
           : "Has alcanzado el límite temporal de solicitudes",
       );
 
       error.details = {
         reason: result.reason,
-        dailyLimit: Number(result.daily_limit || this.policy.dailyCredits),
+        weeklyLimit: Number(result.daily_limit || this.policy.weeklyCredits),
         creditsUsed: Number(result.credits_used || 0),
         creditsRemaining: Number(result.credits_remaining || 0),
         periodStart: result.period_start,
@@ -64,7 +64,7 @@ class AiUsageService {
       cost,
       creditsRemaining: Number(result.credits_remaining || 0),
       creditsUsed: Number(result.credits_used || 0),
-      dailyLimit: Number(result.daily_limit || this.policy.dailyCredits),
+      weeklyLimit: Number(result.daily_limit || this.policy.weeklyCredits),
       burstUsed: Number(result.burst_used || 0),
       burstLimit: Number(result.burst_limit || this.policy.burstLimit),
       burstWindowResetAt: result.burst_window_reset_at,
@@ -80,7 +80,7 @@ class AiUsageService {
 
     const status = await this.aiUsageRepository.getStatus({
       userId,
-      dailyLimit: this.policy.dailyCredits,
+      dailyLimit: this.policy.weeklyCredits,
       burstWindowSeconds: this.policy.burstWindowSeconds,
       burstLimit: this.policy.burstLimit,
     });

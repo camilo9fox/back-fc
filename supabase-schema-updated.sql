@@ -1376,8 +1376,8 @@ BEGIN
   WHERE user_id = p_user_id
   FOR UPDATE;
 
-  IF v_row.period_start <> CURRENT_DATE THEN
-    v_row.period_start := CURRENT_DATE;
+  IF v_row.period_start < date_trunc('week', CURRENT_DATE)::DATE THEN
+    v_row.period_start := date_trunc('week', CURRENT_DATE)::DATE;
     v_row.credits_used := 0;
   END IF;
 
@@ -1401,7 +1401,7 @@ BEGIN
       v_row.credits_used,
       GREATEST(v_row.credits_limit - v_row.credits_used, 0),
       v_row.period_start,
-      (v_row.period_start + INTERVAL '1 day')::timestamptz,
+      (v_row.period_start + INTERVAL '1 week')::timestamptz,
       v_row.burst_limit,
       v_row.burst_used,
       v_window_end,
@@ -1420,7 +1420,7 @@ BEGIN
       v_row.credits_used,
       GREATEST(v_row.credits_limit - v_row.credits_used, 0),
       v_row.period_start,
-      (v_row.period_start + INTERVAL '1 day')::timestamptz,
+      (v_row.period_start + INTERVAL '1 week')::timestamptz,
       v_row.burst_limit,
       v_row.burst_used,
       v_window_end,
@@ -1448,7 +1448,7 @@ BEGIN
     v_row.credits_used + p_credits,
     GREATEST(v_row.credits_limit - (v_row.credits_used + p_credits), 0),
     v_row.period_start,
-    (v_row.period_start + INTERVAL '1 day')::timestamptz,
+    (v_row.period_start + INTERVAL '1 week')::timestamptz,
     v_row.burst_limit,
     v_row.burst_used + 1,
     v_window_end,

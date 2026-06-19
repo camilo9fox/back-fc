@@ -39,11 +39,14 @@ class SupabaseAiUsageRepository {
 
   async getStatus({ userId, dailyLimit, burstWindowSeconds, burstLimit }) {
     const nowIso = new Date().toISOString();
-    const today = nowIso.slice(0, 10);
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    const mondayStr = monday.toISOString().slice(0, 10);
 
     const insertPayload = {
       user_id: userId,
-      period_start: today,
+      period_start: mondayStr,
       credits_used: 0,
       credits_limit: dailyLimit,
       burst_window_start: nowIso,
@@ -75,7 +78,7 @@ class SupabaseAiUsageRepository {
 
     let data = initialData;
 
-    const requiresPeriodReset = data.period_start !== today;
+    const requiresPeriodReset = data.period_start !== mondayStr;
     const requiresPolicySync =
       Number(data.credits_limit) !== Number(dailyLimit) ||
       Number(data.burst_limit) !== Number(burstLimit);
@@ -86,7 +89,7 @@ class SupabaseAiUsageRepository {
       };
 
       if (requiresPeriodReset) {
-        updatePayload.period_start = today;
+        updatePayload.period_start = mondayStr;
         updatePayload.credits_used = 0;
         updatePayload.burst_window_start = nowIso;
         updatePayload.burst_used = 0;
@@ -115,7 +118,7 @@ class SupabaseAiUsageRepository {
 
     const periodStart = new Date(`${data.period_start}T00:00:00.000Z`);
     const periodEnd = new Date(periodStart);
-    periodEnd.setUTCDate(periodEnd.getUTCDate() + 1);
+    periodEnd.setUTCDate(periodEnd.getUTCDate() + 7);
 
     const windowStart = data.burst_window_start
       ? new Date(data.burst_window_start)

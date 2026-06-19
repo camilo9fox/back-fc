@@ -14,8 +14,8 @@ function createAiUsageQuotaMiddleware(aiUsageService, action) {
         res.setHeader("X-AI-Credits-Remaining", String(usage.creditsRemaining));
       }
 
-      if (usage?.allowed && Number.isFinite(usage.dailyLimit)) {
-        res.setHeader("X-AI-Daily-Limit", String(usage.dailyLimit));
+      if (usage?.allowed && Number.isFinite(usage.weeklyLimit)) {
+        res.setHeader("X-AI-Daily-Limit", String(usage.weeklyLimit));
       }
 
       return next();
