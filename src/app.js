@@ -124,6 +124,15 @@ function createApp() {
       return res.status(400).json({ error: error.message });
     }
 
+    // Catch fileFilter rejection that comes as raw Error without code
+    if (
+      error &&
+      error.message &&
+      error.message.includes("Tipo de archivo no permitido")
+    ) {
+      return res.status(400).json({ error: error.message });
+    }
+
     // Known domain errors — safe to surface the message
     if (error instanceof AppError) {
       logger.warn(`${error.name}: ${error.message}`);
