@@ -58,7 +58,7 @@ class SupabaseAuthRepository {
         }
 
         // If identities is empty, the email already exists (Supabase silently returns 200)
-        if (data.user && (!data.session || !data.user.identities?.length)) {
+        if (data.user && !data.session && !data.user.identities?.length) {
           throw new Error(
             "Ya existe una cuenta con este email. Inicia sesión o recupera tu contraseña.",
           );
