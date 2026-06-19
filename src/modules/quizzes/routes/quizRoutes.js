@@ -27,15 +27,15 @@ function createQuizRouter(controller, aiUsageMiddleware) {
 
   router.post(
     "/generate",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => controller.generateQuiz(req, res),
   );
 
   router.post(
     "/generate-async",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => controller.generateQuizAsync(req, res),
   );
 

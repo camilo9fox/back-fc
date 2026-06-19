@@ -27,15 +27,15 @@ function createTrueFalseRouter(controller, aiUsageMiddleware) {
 
   router.post(
     "/generate",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => controller.generateSet(req, res),
   );
 
   router.post(
     "/generate-async",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => controller.generateSetAsync(req, res),
   );
 

@@ -76,7 +76,7 @@ function createApp() {
     res.json({
       status: dbStatus === "connected" ? "ok" : "degraded",
       timestamp: new Date().toISOString(),
-      database: { status: dbStatus, error: dbError },
+      database: { status: dbStatus },
     });
   });
 
@@ -117,6 +117,11 @@ function createApp() {
       return res.status(413).json({
         error: `Archivo demasiado grande. Máximo permitido: ${maxMb}MB.`,
       });
+    }
+
+    // Multer fileFilter / file type rejection
+    if (error && error.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({ error: error.message });
     }
 
     // Known domain errors — safe to surface the message

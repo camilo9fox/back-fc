@@ -33,14 +33,17 @@ class AuthRoutes {
     );
     this.router.post(
       "/refresh",
+      perUserApiLimiter,
       this.authController.refresh.bind(this.authController),
     );
     this.router.get(
       "/oauth/:provider",
+      perUserApiLimiter,
       this.authController.signInWithOAuth.bind(this.authController),
     );
     this.router.get(
       "/callback",
+      perUserApiLimiter,
       this.authController.oauthCallback.bind(this.authController),
     );
     this.router.post(
@@ -51,6 +54,7 @@ class AuthRoutes {
 
     this.router.post(
       "/resend-verification",
+      perUserApiLimiter,
       this.authController.resendVerification.bind(this.authController),
     );
 

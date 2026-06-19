@@ -31,22 +31,22 @@ function createFlashCardRouter(flashCardController, aiUsageMiddleware) {
 
   router.post(
     "/generate-flashcard",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => flashCardController.generateFlashCard(req, res),
   );
 
   router.post(
     "/generate-flashcards",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => flashCardController.generateFlashCards(req, res),
   );
 
   router.post(
     "/generate-flashcards-async",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => flashCardController.generateFlashCardsAsync(req, res),
   );
 

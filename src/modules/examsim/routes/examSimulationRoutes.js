@@ -27,15 +27,15 @@ function createExamSimulationRouter(controller, aiUsageMiddleware) {
 
   router.post(
     "/generate",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => controller.generateSimulation(req, res),
   );
 
   router.post(
     "/generate-async",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => controller.generateSimulationAsync(req, res),
   );
 

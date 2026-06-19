@@ -27,8 +27,8 @@ function createStudyGuideRouter(controller, aiUsageMiddleware) {
 
   router.post(
     "/generate-async",
-    aiUsageMiddleware,
     upload.single("file"),
+    aiUsageMiddleware,
     (req, res) => controller.generateGuideAsync(req, res),
   );
 
