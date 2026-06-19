@@ -29,6 +29,7 @@ class AuthController {
       }
 
       const result = await this.authService.signUp(email, password, metadata);
+      logger.info(`Sign up: ${result.user.id} (${result.user.email})`);
 
       // In production, user must verify email before signing in
       if (process.env.NODE_ENV === "production") {
@@ -86,6 +87,7 @@ class AuthController {
       }
 
       const result = await this.authService.signIn(email, password);
+      logger.info(`Sign in: ${result.user.id} (${result.user.email})`);
 
       // Set refresh token in httpOnly cookie (not accessible from JS)
       res.cookie("refreshToken", result.refreshToken, config.cookie);

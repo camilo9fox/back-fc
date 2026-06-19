@@ -126,10 +126,8 @@ class ExamSimulationController {
 
           logger.error("ExamSimulation async generation failed", {
             jobId: job.id,
-            userId,
             stage: stage || null,
             message: baseMessage,
-            stack: error?.stack || null,
           });
 
           this.generationJobService.failJob(

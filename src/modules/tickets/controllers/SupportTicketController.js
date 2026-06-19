@@ -109,9 +109,7 @@ class SupportTicketController {
   }
 
   _handleError(error, res) {
-    logger.error(`SupportTicketController error: ${error.message}`, {
-      stack: error.stack,
-    });
+    logger.error(`SupportTicketController error: ${error.message}`);
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ error: error.message });
     }

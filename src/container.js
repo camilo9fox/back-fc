@@ -158,7 +158,10 @@ class Container {
 
     container.register("spacedRepetitionService", (c) => {
       const SpacedRepetitionService = require("./modules/flashcards/services/SpacedRepetitionService");
-      return new SpacedRepetitionService(c.get("spacedRepetitionRepository"));
+      return new SpacedRepetitionService(
+        c.get("spacedRepetitionRepository"),
+        c.get("flashCardRepository"),
+      );
     });
 
     container.register("manualFlashCardService", (c) => {

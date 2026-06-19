@@ -15,7 +15,7 @@ const {
 
 const CARD_ID = "fc-sr-001";
 
-function buildService(repoOverrides = {}) {
+function buildService(repoOverrides = {}, flashRepoOverrides = {}) {
   const repo = {
     findDueCards: jest.fn().mockResolvedValue([]),
     getReview: jest.fn().mockResolvedValue(null),
@@ -27,7 +27,11 @@ function buildService(repoOverrides = {}) {
     findAllForExport: jest.fn().mockResolvedValue([]),
     ...repoOverrides,
   };
-  return { service: new SpacedRepetitionService(repo), repo };
+  const flashCardRepo = {
+    findById: jest.fn().mockResolvedValue({ id: CARD_ID }),
+    ...flashRepoOverrides,
+  };
+  return { service: new SpacedRepetitionService(repo, flashCardRepo), repo };
 }
 
 // ── getDueCards ───────────────────────────────────────────────────────────────
@@ -86,6 +90,13 @@ describe("SpacedRepetitionService.submitReview() — validation", () => {
     await expect(
       service.submitReview(VALID_USER_ID, CARD_ID, 5),
     ).rejects.toThrow(ValidationError);
+  });
+
+  it("throws ValidationError when flashcard does not belong to user", async () => {
+    const { service } = buildService({}, { findById: jest.fn().mockResolvedValue(null) });
+    await expect(
+      service.submitReview(VALID_USER_ID, CARD_ID, 3),
+    ).rejects.toThrow("Flashcard not found");
   });
 });
 

@@ -221,14 +221,16 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
    * @param {Object} updates - Fields to update
    * @returns {Promise<Object|null>} Updated flashcard or null if not found
    */
-  async update(id, updates) {
+  async update(id, updates, userId = null) {
     try {
-      const { data, error } = await this.supabase
+      let query = this.supabase
         .from(this.tableName)
         .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
+        .eq("id", id);
+
+      if (userId) query = query.eq("user_id", userId);
+
+      const { data, error } = await query.select().single();
 
       if (error && error.code !== "PGRST116") {
         logger.error("Supabase update error:", error);
@@ -275,12 +277,16 @@ class SupabaseFlashCardRepository extends IFlashCardRepository {
    * @param {string} id - FlashCard ID
    * @returns {Promise<boolean>} True if deleted, false if not found
    */
-  async delete(id) {
+  async delete(id, userId = null) {
     try {
-      const { error } = await this.supabase
+      let query = this.supabase
         .from(this.tableName)
         .delete()
         .eq("id", id);
+
+      if (userId) query = query.eq("user_id", userId);
+
+      const { error } = await query;
 
       if (error) {
         logger.error("Supabase delete error:", error);

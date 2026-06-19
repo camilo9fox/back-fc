@@ -143,7 +143,7 @@ class ManualFlashCardService {
     if (!existing) {
       return false;
     }
-    await this.flashCardRepository.delete(id);
+    await this.flashCardRepository.delete(id, userId);
     return true;
   }
 
@@ -159,7 +159,7 @@ class ManualFlashCardService {
       return null;
     }
     const validated = this._validateFlashCardData({ question, answer });
-    return this.flashCardRepository.update(id, validated);
+    return this.flashCardRepository.update(id, validated, userId);
   }
 
   /**

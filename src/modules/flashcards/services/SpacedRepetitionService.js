@@ -15,8 +15,9 @@ const DEFAULT_EASE = 2.5;
  * Reference: https://www.supermemo.com/en/blog/application-of-a-computer-to-improve-the-results-obtained-in-working-with-the-supermemo-method
  */
 class SpacedRepetitionService {
-  constructor(spacedRepetitionRepository) {
+  constructor(spacedRepetitionRepository, flashCardRepository) {
     this.repo = spacedRepetitionRepository;
+    this.flashCardRepository = flashCardRepository;
   }
 
   /**
@@ -43,6 +44,12 @@ class SpacedRepetitionService {
       throw new ValidationError(
         "quality must be 1 (Again), 2 (Hard), 3 (Good), or 4 (Easy)",
       );
+    }
+
+    // Verify the flashcard belongs to the user
+    const card = await this.flashCardRepository.findById(flashcardId, userId);
+    if (!card) {
+      throw new ValidationError("Flashcard not found");
     }
 
     // Load existing state or initialise
