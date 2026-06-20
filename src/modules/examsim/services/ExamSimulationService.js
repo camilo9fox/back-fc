@@ -203,44 +203,46 @@ class ExamSimulationService {
 
     report("Generando preguntas de desarrollo con IA", 84);
     let developmentQuestions;
-    try {
-      developmentQuestions =
-        await this.examSimulationGenerationService.generateDevelopmentQuestions(
-          generationContext,
-          devCount,
-        );
-    } catch (primaryError) {
-      const fallbackContexts = [
-        this.truncateContext(externalContext),
-        this.truncateContext(bankContext),
-      ].filter(Boolean);
+    if (devCount > 0) {
+      try {
+        developmentQuestions =
+          await this.examSimulationGenerationService.generateDevelopmentQuestions(
+            generationContext,
+            devCount,
+          );
+      } catch (primaryError) {
+        const fallbackContexts = [
+          this.truncateContext(externalContext),
+          this.truncateContext(bankContext),
+        ].filter(Boolean);
 
-      let recovered = null;
-      for (const fallbackContext of fallbackContexts) {
-        try {
-          recovered =
-            await this.examSimulationGenerationService.generateDevelopmentQuestions(
-              fallbackContext,
-              devCount,
+        let recovered = null;
+        for (const fallbackContext of fallbackContexts) {
+          try {
+            recovered =
+              await this.examSimulationGenerationService.generateDevelopmentQuestions(
+                fallbackContext,
+                devCount,
+              );
+            if (recovered?.length) break;
+          } catch (fallbackError) {
+            logger.warn(
+              `ExamSimulationService: fallback context failed (${fallbackError.message})`,
             );
-          if (recovered?.length) break;
-        } catch (fallbackError) {
-          logger.warn(
-            `ExamSimulationService: fallback context failed (${fallbackError.message})`,
+          }
+        }
+
+        if (!recovered?.length) {
+          throw new ValidationError(
+            "No se pudo generar la seccion de desarrollo con el contenido disponible. Intenta con otro documento o menos cantidad de preguntas.",
           );
         }
-      }
 
-      if (!recovered?.length) {
-        throw new ValidationError(
-          "No se pudo generar la seccion de desarrollo con el contenido disponible. Intenta con otro documento o menos cantidad de preguntas.",
+        developmentQuestions = recovered;
+        logger.warn(
+          `ExamSimulationService: using fallback context for development generation (${primaryError.message})`,
         );
       }
-
-      developmentQuestions = recovered;
-      logger.warn(
-        `ExamSimulationService: using fallback context for development generation (${primaryError.message})`,
-      );
     }
 
     report("Finalizando simulacion", 96);

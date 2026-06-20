@@ -298,7 +298,8 @@ REGLAS OBLIGATORIAS:
 
     const safeItems = await this.contentSafetyService.checkBatch(
       normalized,
-      (item) => `${item.prompt} ${item.reference_answer || ""} ${item.evaluation_criteria || ""}`,
+      (item) =>
+        `${item.prompt} ${item.reference_answer || ""} ${item.evaluation_criteria || ""}`,
     );
 
     if (safeItems.length === 0) {
