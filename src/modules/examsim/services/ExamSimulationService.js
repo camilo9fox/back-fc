@@ -122,9 +122,9 @@ class ExamSimulationService {
       throw new ValidationError("La categoria es obligatoria");
     }
 
-    const tfCount = Math.min(Math.max(Number(trueFalseCount) || 6, 1), 20);
-    const mcCount = Math.min(Math.max(Number(quizCount) || 6, 1), 20);
-    const devCount = Math.min(Math.max(Number(developmentCount) || 3, 1), 10);
+    const tfCount = Number(trueFalseCount);
+    const mcCount = Number(quizCount);
+    const devCount = Number(developmentCount);
 
     const category = await this.categoryService.getCategoryById(
       categoryId,
