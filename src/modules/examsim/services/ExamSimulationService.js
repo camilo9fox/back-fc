@@ -262,9 +262,11 @@ class ExamSimulationService {
         multipleChoiceQuestions: pickedMultipleChoice.map((item, index) =>
           ExamSimulationDto.normalizeMultipleChoiceQuestion(item, index),
         ),
-        developmentQuestions: developmentQuestions.map((item, index) =>
-          ExamSimulationDto.normalizeDevelopmentQuestion(item, index),
-        ),
+        developmentQuestions: developmentQuestions
+          ? developmentQuestions.map((item, index) =>
+              ExamSimulationDto.normalizeDevelopmentQuestion(item, index),
+            )
+          : [],
       };
     } catch (error) {
       error.generationStage = currentStage;
